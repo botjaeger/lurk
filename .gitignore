@@ -1,0 +1,8 @@
+# Chrome writes indexed DNR rulesets here when the folder is loaded unpacked.
+_metadata/
+dist/
+node_modules/
+# Per-user Xcode state.
+xcuserdata/
+# Local editor-tool cache (holds machine paths).
+.impeccable/

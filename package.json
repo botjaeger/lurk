@@ -1,0 +1,40 @@
+{
+  "name": "lurk",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Browser extension (Chrome, Firefox, Safari) that hides Seen, story views and typing on Google Chat, Messenger, Facebook, Instagram, WhatsApp and Teams.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "e2e": "node scripts/build.mjs chrome && node tests/e2e/extension.e2e.mjs && node tests/e2e/restart.e2e.mjs && node tests/e2e/social.e2e.mjs && node tests/e2e/apps.e2e.mjs && node tests/e2e/stats.e2e.mjs",
+    "e2e:firefox": "node scripts/build.mjs firefox && node tests/e2e/firefox.e2e.mjs",
+    "icons": "node scripts/make-icons.mjs",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
+    "typecheck": "tsc --noEmit",
+    "check": "prettier --check . && eslint . && tsc --noEmit && node --test tests/*.test.mjs",
+    "build": "node scripts/build.mjs",
+    "site:dev": "npm --prefix site run dev",
+    "site:build": "npm --prefix site run check",
+    "build:chrome": "node scripts/build.mjs chrome",
+    "build:firefox": "node scripts/build.mjs firefox",
+    "build:safari": "node scripts/build.mjs safari",
+    "safari:app": "node scripts/build.mjs safari && xcodebuild -quiet -project safari/Lurk/Lurk.xcodeproj -scheme Lurk -configuration Release -derivedDataPath dist/xcode CODE_SIGNING_ALLOWED=NO build && rm -rf dist/Lurk.app && cp -R dist/xcode/Build/Products/Release/Lurk.app dist/Lurk.app",
+    "safari:app:signed": "node scripts/build.mjs safari && xcodebuild -quiet -project safari/Lurk/Lurk.xcodeproj -scheme Lurk -configuration Release -derivedDataPath dist/xcode -allowProvisioningUpdates DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM build && rm -rf dist/Lurk.app && cp -R dist/xcode/Build/Products/Release/Lurk.app dist/Lurk.app"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/chrome": "^0.3.7",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.15.0",
+    "globals": "^17.14.0",
+    "playwright": "^1.65.1",
+    "prettier": "^3.10.1",
+    "puppeteer-core": "^25.17.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.73.0"
+  }
+}

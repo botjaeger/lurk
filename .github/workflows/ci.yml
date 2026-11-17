@@ -1,0 +1,56 @@
+# Runs the whole local gate on every push and pull request: format + lint + unit tests, the builds, the website,
+# and the real extension in headless Chromium and headless Firefox Nightly.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # The website's packages first: ESLint's type-aware rules for site/ read their types.
+      - run: npm ci
+        working-directory: site
+      - run: npm run check
+      - run: npm run build
+      - run: npm run site:build
+
+  e2e-chromium:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # The full Chromium build (not the headless shell) is the one that loads extensions.
+      - run: echo "CHROME_BIN=$(node -e 'import("playwright").then((p) => console.log(p.chromium.executablePath()))')" >> "$GITHUB_ENV"
+      - run: npm run e2e
+
+  e2e-firefox:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Nightly, like Developer Edition, loads an unsigned add-on; release Firefox does not.
+      - run: |
+          npx --yes @puppeteer/browsers install firefox@nightly --path "$RUNNER_TEMP/browsers" --format "{{path}}" > "$RUNNER_TEMP/firefox-path"
+          echo "FIREFOX_BIN=$(tail -n 1 "$RUNNER_TEMP/firefox-path")" >> "$GITHUB_ENV"
+      - run: npm run e2e:firefox

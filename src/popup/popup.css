@@ -1,0 +1,467 @@
+/* Lurk popup. Layout follows Brainrot's popup: header, one bold hero card with the main switch and a
+   live status pill, then soft rounded rows. Colours only from these tokens. Light is the default;
+   the system dark setting, or html[data-theme] from the theme button, picks the other set. */
+:root {
+  color-scheme: light;
+  --bg: #fbfcfa;
+  --card: #f0f3ef;
+  --ink: #111311;
+  --muted: #5a615c;
+  --line: #d3d9d3;
+  --accent: #0e7a3c; /* accent as text, outline and "on" switch */
+  --hero: #1fd566;
+  --hero-ink: #06210f;
+  --pill: rgba(6, 33, 15, 0.12);
+  --track-off: #b9c1ba;
+  --warn: #b3261e;
+  --glow: 0 10px 24px rgba(14, 122, 60, 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111311;
+    --card: #1b1e1b;
+    --ink: #eef1ee;
+    --muted: #9ba49e;
+    --line: #2f3530;
+    --accent: #1fd566;
+    --track-off: #3a403b;
+    --warn: #f2b8b5;
+    --glow: 0 10px 32px rgba(31, 213, 102, 0.22);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111311;
+  --card: #1b1e1b;
+  --ink: #eef1ee;
+  --muted: #9ba49e;
+  --line: #2f3530;
+  --accent: #1fd566;
+  --track-off: #3a403b;
+  --warn: #f2b8b5;
+  --glow: 0 10px 32px rgba(31, 213, 102, 0.22);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  width: 380px;
+  min-width: 320px;
+  background: var(--bg);
+  color: var(--ink);
+  font:
+    14px/1.4 system-ui,
+    -apple-system,
+    "Segoe UI Variable",
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 14px 16px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---- Header ---------------------------------------------------------------------------------- */
+.top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 2px;
+}
+
+.top img {
+  border-radius: 9px;
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.brand {
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.version {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.icon-button {
+  margin-left: auto;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  color: var(--ink);
+}
+
+/* Shows the theme you would switch to. */
+.icon-button .sun {
+  display: none;
+}
+
+:root[data-dark="true"] .icon-button .sun {
+  display: block;
+}
+
+:root[data-dark="true"] .icon-button .moon {
+  display: none;
+}
+
+/* ---- Hero ------------------------------------------------------------------------------------ */
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 18px 16px;
+  border-radius: 24px;
+  background: var(--hero);
+  color: var(--hero-ink);
+  box-shadow: var(--glow);
+}
+
+/* Off or paused: the card steps back so the warning reads. */
+.hero[data-state="off"] {
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: none;
+}
+
+.hero-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: 23px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.tagline {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.pill {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border-radius: 999px;
+  background: var(--pill);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.hero[data-state="off"] .pill {
+  background: var(--bg);
+}
+
+.pill::before {
+  content: "✓";
+  flex: none;
+  font-weight: 800;
+}
+
+.pill[data-tone="warn"] {
+  color: var(--warn);
+}
+
+.pill[data-tone="warn"]::before {
+  content: "!";
+}
+
+.pill[data-tone="idle"]::before {
+  content: "–";
+}
+
+/* ---- Switches -------------------------------------------------------------------------------- */
+.switch {
+  appearance: none;
+  flex: none;
+  position: relative;
+  width: 44px;
+  height: 26px;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--track-off);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s;
+}
+
+.switch:checked {
+  background: var(--accent);
+}
+
+.switch:checked::after {
+  transform: translateX(18px);
+}
+
+/* A switch the open site has no support for: the row says "Not on …" instead. */
+.switch:disabled {
+  display: none;
+}
+
+.switch-hero {
+  width: 58px;
+  height: 32px;
+}
+
+.switch-hero::after {
+  width: 26px;
+  height: 26px;
+}
+
+.switch-hero:checked {
+  background: #0b0c0b;
+}
+
+.switch-hero:checked::after {
+  transform: translateX(26px);
+}
+
+.switch-hero:focus-visible {
+  outline-color: currentColor;
+}
+
+/* ---- Hide rows ------------------------------------------------------------------------------- */
+.site {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.section-label {
+  margin: 2px 0 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.row {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px 0 16px;
+  border-radius: 18px;
+  background: var(--card);
+  cursor: pointer;
+}
+
+.row svg {
+  flex: none;
+}
+
+.row-label {
+  flex-grow: 1;
+  font-weight: 700;
+}
+
+.unsupported {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.row:has(.switch:disabled) {
+  color: var(--muted);
+  cursor: default;
+}
+
+/* ---- Pass-through ---------------------------------------------------------------------------- */
+.pass {
+  min-height: 44px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pass[aria-disabled="true"] {
+  color: var(--muted);
+  cursor: default;
+}
+
+/* ---- Stats ----------------------------------------------------------------------------------- */
+.stats summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  list-style: none;
+}
+
+.stats summary::-webkit-details-marker {
+  display: none;
+}
+
+.stats summary::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+}
+
+.stats[open] summary::after {
+  transform: translateY(1px) rotate(-135deg);
+}
+
+.stats-total {
+  margin: 0 0 8px;
+  text-align: center;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.stats-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stats-list li {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 16px;
+  border-radius: 18px;
+  background: var(--card);
+}
+
+.stats-site {
+  flex: none;
+  font-weight: 700;
+}
+
+.stats-value {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.stats-hint {
+  margin: 8px 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.link-button {
+  display: block;
+  min-height: 44px;
+  margin: 0 auto;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--warn);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---- Footer ---------------------------------------------------------------------------------- */
+.tip {
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: var(--card);
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.tip[data-tone="note"] {
+  color: var(--ink);
+}
+
+.works-on {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch,
+  .switch::after {
+    transition: none;
+  }
+}

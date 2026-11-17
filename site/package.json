@@ -1,0 +1,23 @@
+{
+  "name": "lurk-site",
+  "private": true,
+  "version": "0.1.0",
+  "license": "MIT",
+  "description": "Website for Lurk, the browser extension that hides Seen, story views and typing.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "check": "tsc --noEmit && vite build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vite": "^7.1.0"
+  },
+  "dependencies": {
+    "@fontsource-variable/bricolage-grotesque": "^5.2.0"
+  }
+}

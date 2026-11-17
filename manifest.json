@@ -1,0 +1,90 @@
+{
+  "manifest_version": 3,
+  "name": "Lurk",
+  "version": "0.1.0",
+  "description": "Read without the receipt: hides Seen, story views and typing on Google Chat, Messenger, Facebook, Instagram, WhatsApp and Teams.",
+  "permissions": ["declarativeNetRequest", "storage", "alarms", "activeTab"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "block_receipts",
+        "enabled": true,
+        "path": "rules.json"
+      },
+      {
+        "id": "block_typing",
+        "enabled": true,
+        "path": "rules-typing.json"
+      }
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.facebook.com/*",
+        "https://*.messenger.com/*",
+        "https://*.instagram.com/*",
+        "https://teams.microsoft.com/*",
+        "https://teams.live.com/*",
+        "https://teams.cloud.microsoft/*"
+      ],
+      "js": ["content/page.js"],
+      "world": "MAIN",
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": ["https://web.whatsapp.com/*"],
+      "js": ["content/whatsapp.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://chat.google.com/*"],
+      "js": ["content/gchat.js"],
+      "world": "MAIN",
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://chat.google.com/*",
+        "https://*.facebook.com/*",
+        "https://*.messenger.com/*",
+        "https://*.instagram.com/*",
+        "https://teams.microsoft.com/*",
+        "https://teams.live.com/*",
+        "https://teams.cloud.microsoft/*",
+        "https://web.whatsapp.com/*"
+      ],
+      "js": ["content/bridge.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Lurk: read receipts blocked",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "commands": {
+    "toggle-blocking": {
+      "suggested_key": { "default": "Alt+Shift+U" },
+      "description": "Turn read-receipt blocking on or off"
+    }
+  }
+}

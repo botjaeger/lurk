@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy Policy — Lurk</title>
+    <meta
+      name="description"
+      content="Lurk collects no personal data. What the extension keeps on your device, what its permissions are for, and how this website handles visits."
+    />
+    <meta name="theme-color" content="#0b0c0b" />
+    <link rel="icon" href="/icon-32.png" />
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body>
+    <a href="#main" class="skip-link">Skip to content</a>
+
+    <header class="wrap header">
+      <a href="./" class="brand">
+        <img src="/mark.svg" alt="" width="40" height="40" />
+        <span>Lurk</span>
+      </a>
+      <nav class="doc-nav" aria-label="Main">
+        <a href="./">Home</a>
+        <a href="./privacy.html" aria-current="page">Privacy</a>
+        <a href="./terms.html">Terms</a>
+      </nav>
+    </header>
+
+    <main id="main" class="doc">
+      <h1 class="display">Privacy Policy</h1>
+      <p class="updated">Last updated: 17 November 2026</p>
+
+      <div class="summary">
+        <p>
+          <strong>The short version:</strong> Lurk collects no personal data. It never reads, stores
+          or sends your messages. Its settings and counts stay in your browser, and there is no
+          account.
+        </p>
+      </div>
+
+      <p>
+        This policy covers the Lurk browser extension for Chrome, Firefox and Safari ("the
+        extension") and this website ("the website").
+      </p>
+
+      <h2>What the extension collects</h2>
+      <p>
+        Nothing. The extension has no servers, no analytics, no tracking and no advertising. It
+        never sends any data off your device.
+      </p>
+
+      <h2>What the extension looks at</h2>
+      <p>
+        On the supported chat apps only, the extension looks at the requests the app is about to
+        send, to recognise a read receipt, a story view or a typing signal. When it finds one, it
+        changes or stops that request in your browser. It does not read, keep or send the content of
+        your messages, stories or contacts.
+      </p>
+
+      <h2>What the extension stores on your device</h2>
+      <p>
+        The extension keeps a few values in your browser's own extension storage. They never leave
+        your device:
+      </p>
+      <ul>
+        <li>whether Lurk is switched on, and which signals to hide (Seen, story views, typing);</li>
+        <li>your light or dark theme for the popup;</li>
+        <li>
+          how many Seen receipts, story views and typing signals it hid on each app, and the date
+          counting started;
+        </li>
+        <li>when a 10-second "let receipts through" pass ends, while one is running.</li>
+      </ul>
+      <p>"Reset stats" in the popup clears the counts. Removing the extension deletes all of it.</p>
+
+      <h2>Why the extension needs its permissions</h2>
+      <ul>
+        <li>
+          <strong>Access to the supported apps</strong> (chat.google.com, facebook.com,
+          messenger.com, instagram.com, web.whatsapp.com, teams.microsoft.com, teams.live.com,
+          teams.cloud.microsoft): to run there and hide the signals described above. It does nothing
+          on any other site.
+        </li>
+        <li>
+          <strong>declarativeNetRequest:</strong> to block the Google Chat and Teams read-receipt
+          requests and the Google Chat typing request with the browser's built-in rules.
+        </li>
+        <li><strong>storage:</strong> to keep the settings and counts listed above.</li>
+        <li><strong>alarms:</strong> to turn hiding back on when a 10-second pass ends.</li>
+        <li>
+          <strong>activeTab:</strong> to show in the popup which app the open tab is on. The address
+          is read on your device when you open the popup, and never stored or sent.
+        </li>
+      </ul>
+
+      <h2>The website</h2>
+      <p>
+        The website has no cookies, no sign-up and no analytics, and its fonts are served from the
+        website itself. The company hosting it may log technical data such as your IP address for
+        security purposes. The store links lead to the Chrome Web Store, Firefox Add-ons or the Mac
+        App Store, which have their own privacy policies.
+      </p>
+
+      <h2>Children</h2>
+      <p>The extension and the website collect no data from anyone, including children.</p>
+
+      <h2>Changes</h2>
+      <p>If this policy changes, the new version will be posted on this page with a new date.</p>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap">
+        <span>© 2026 Lurk · <span data-version></span></span>
+        <nav aria-label="Footer">
+          <a href="./">Home</a>
+          <a href="./terms.html">Terms</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

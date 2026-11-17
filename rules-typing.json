@@ -1,0 +1,11 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "regexFilter": "^https://(chat|mail)\\.google\\.com/(chat/)?(u/[0-9]+/)?_/DynamiteWebUi/data/batchexecute[?](.*&)?rpcids=uQwtvc(&|$)",
+      "resourceTypes": ["xmlhttprequest", "ping", "other"]
+    }
+  }
+]
