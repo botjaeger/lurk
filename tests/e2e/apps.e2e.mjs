@@ -1,4 +1,4 @@
-// WhatsApp Web and Teams blocking in headless Chromium with the real extension: npm run e2e
+// WhatsApp Web and Teams blocking in headless Chromium with the real extension: pnpm e2e
 // The sites are faked with Playwright routes, so the real content scripts run on the real origins
 // while nothing reaches WhatsApp or Microsoft. Shapes come from open-source clients
 // (Baileys for WhatsApp nodes, purple-teams / Squads for Teams calls);

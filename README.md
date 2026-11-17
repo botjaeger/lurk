@@ -37,20 +37,20 @@ Lurk is not in the browser stores yet. Build it and load it yourself:
 ```sh
 git clone https://github.com/botjaeger/lurk.git
 cd lurk
-npm install
-npm run build        # writes dist/chrome, dist/firefox and dist/safari
+pnpm install
+pnpm build        # writes dist/chrome, dist/firefox and dist/safari
 ```
 
 - **Chrome, Edge, Brave:** open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**
   and choose `dist/chrome`.
 - **Firefox 142 or later:** open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on**
   and choose `dist/firefox/manifest.json`. Firefox removes it when it quits.
-- **Safari 26 or later (macOS 14+):** `npm run safari:app` builds `dist/Lurk.app` (needs Xcode). In Safari,
+- **Safari 26 or later (macOS 14+):** `pnpm safari:app` builds `dist/Lurk.app` (needs Xcode). In Safari,
   turn on **Settings → Advanced → Show features for web developers**, then **Develop → Allow Unsigned
   Extensions**. Open `dist/Lurk.app` once and turn Lurk on in **Settings → Extensions**. With an Apple
-  developer account, `DEVELOPMENT_TEAM=<team id> npm run safari:app:signed` builds a signed app instead.
+  developer account, `DEVELOPMENT_TEAM=<team id> pnpm safari:app:signed` builds a signed app instead.
 
-The build needs Node.js (tested on 22) and the `zip` command. Lurk is written in TypeScript (`src/`);
+The build needs Node.js (tested on 22), pnpm and the `zip` command. Lurk is written in TypeScript (`src/`);
 the build bundles each script with esbuild, unminified. The extension has no run-time dependencies.
 
 ## Using it
@@ -125,21 +125,21 @@ worker. `src/sites.ts` is the one list of apps and what each covers, shared by t
 ## Develop
 
 ```sh
-npm install          # dev tools (TypeScript, esbuild, Prettier, ESLint, Playwright, puppeteer-core) and the pre-commit hook
-npm --prefix site install   # once: ESLint checks the website's TypeScript with its types
-npm run format       # Prettier
-npm run typecheck    # tsc --noEmit over src/
-npm run check        # Prettier check + ESLint + typecheck + unit tests (node:test)
-npm run e2e          # builds dist/chrome, runs it in headless Chromium against faked sites
-npm run e2e:firefox  # the Firefox build in headless Firefox Developer Edition or Nightly
-npm run build        # dist/chrome, dist/firefox, dist/safari + dist/lurk-chrome.zip, dist/lurk-firefox.zip
-npm run safari:app   # dist/Lurk.app from the Xcode project in safari/
-npm run icons        # regenerate icons/*.png from scripts/make-icons.mjs
+pnpm install      # dev tools (TypeScript, esbuild, Prettier, ESLint, Vitest, Playwright, puppeteer-core) and the pre-commit hook
+pnpm format       # Prettier
+pnpm typecheck    # tsc --noEmit over src/ and tests/
+pnpm check        # Prettier check + ESLint + typecheck + unit tests (Vitest)
+pnpm test:watch   # unit tests, rerun on save
+pnpm e2e          # builds dist/chrome, runs it in headless Chromium against faked sites
+pnpm e2e:firefox  # the Firefox build in headless Firefox Developer Edition or Nightly
+pnpm build        # dist/chrome, dist/firefox, dist/safari + dist/lurk-chrome.zip, dist/lurk-firefox.zip
+pnpm safari:app   # dist/Lurk.app from the Xcode project in safari/
+pnpm icons        # regenerate icons/*.png from scripts/make-icons.mjs
 ```
 
-`CHROME_BIN` points the Chromium suites at a full Chromium or Chrome for Testing build (`npx playwright install
+`CHROME_BIN` points the Chromium suites at a full Chromium or Chrome for Testing build (`pnpm exec playwright install
 chromium` provides one); `FIREFOX_BIN` points the Firefox suite at Firefox Developer Edition or Nightly, which
-load an unsigned add-on. The pre-commit hook runs `npm run check` (and the website build when `site/` changed);
+load an unsigned add-on. The pre-commit hook runs `pnpm check` (and the website build when `site/` changed);
 CI (`.github/workflows/ci.yml`) runs everything above on every push and pull request.
 [AGENTS.md](AGENTS.md) describes the code layout and the rules for changing it.
 
@@ -148,9 +148,8 @@ CI (`.github/workflows/ci.yml`) runs everything above on every push and pull req
 `site/` is the project website (home, privacy policy, terms), a small static Vite site:
 
 ```sh
-npm --prefix site install
-npm run site:dev     # local server at http://localhost:5173
-npm run site:build   # typecheck + site/dist/
+pnpm site:dev     # local server at http://localhost:5173
+pnpm site:build   # typecheck + site/dist/
 ```
 
 A push to `main` publishes it to GitHub Pages through `.github/workflows/pages.yml` (set the repository's

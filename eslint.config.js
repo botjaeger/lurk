@@ -1,6 +1,6 @@
 // ESLint for the extension (src/), the website (site/), build scripts and tests. Types are checked
-// by `tsc --noEmit` (npm run typecheck, part of npm run check; site/ by npm run site:build).
-// Formatting is Prettier's (npm run format).
+// by `tsc --noEmit` (pnpm typecheck, part of pnpm check; site/ by pnpm site:build).
+// Formatting is Prettier's (pnpm format).
 import js from "@eslint/js";
 import { defineConfig } from "eslint/config";
 import globals from "globals";
@@ -28,12 +28,16 @@ export default defineConfig(
       "no-promise-executor-return": "error",
     },
   },
-  // Type-aware rules for every TypeScript file: src/ (tsconfig.json) and site/ (site/tsconfig.json,
-  // which needs `npm --prefix site install`).
+  // Type-aware rules for every TypeScript file: src/ (tsconfig.json), tests/ (tests/tsconfig.json) and
+  // site/ (site/tsconfig.json, whose types come from the workspace install, `pnpm install`).
   {
     files: ["**/*.ts"],
     languageOptions: {
-      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+      parserOptions: {
+        // vitest.config.ts sits outside every tsconfig; the default project covers it.
+        projectService: { allowDefaultProject: ["vitest.config.ts"] },
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
     rules: {
       "@typescript-eslint/no-floating-promises": "error",
@@ -67,7 +71,14 @@ export default defineConfig(
   },
   // Build scripts, configs and tests run in Node; e2e tests also evaluate code inside pages and the extension.
   {
-    files: ["scripts/**/*.mjs", "tests/**/*.mjs", "*.config.js", "site/*.config.ts"],
+    files: [
+      "scripts/**/*.mjs",
+      "tests/**/*.mjs",
+      "tests/*.ts",
+      "*.config.js",
+      "*.config.ts",
+      "site/*.config.ts",
+    ],
     languageOptions: { sourceType: "module", globals: { ...globals.node } },
   },
   {

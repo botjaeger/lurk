@@ -1,7 +1,7 @@
-// The Firefox build (dist/firefox) in headless Firefox: npm run e2e:firefox
+// The Firefox build (dist/firefox) in headless Firefox: pnpm e2e:firefox
 // Needs puppeteer-core (PUPPETEER=<path to the package> if it is not installed here) and a Firefox
 // Developer Edition or Nightly binary (FIREFOX_BIN=<path>), which load an unsigned build. Run
-// `node scripts/build.mjs firefox` first; npm run e2e:firefox does.
+// `node scripts/build.mjs firefox` first; pnpm e2e:firefox does.
 // The sites are faked with request interception, so the real content scripts run on real origins
 // while nothing reaches Meta, WhatsApp or Google.
 import { createRequire } from "node:module";

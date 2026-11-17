@@ -14,43 +14,44 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
-      # The website's packages first: ESLint's type-aware rules for site/ read their types.
-      - run: npm ci
-        working-directory: site
-      - run: npm run check
-      - run: npm run build
-      - run: npm run site:build
+          cache: pnpm
+      # The workspace install covers site/ too: ESLint's type-aware rules for site/ read its types.
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm build
+      - run: pnpm site:build
 
   e2e-chromium:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
       # The full Chromium build (not the headless shell) is the one that loads extensions.
       - run: echo "CHROME_BIN=$(node -e 'import("playwright").then((p) => console.log(p.chromium.executablePath()))')" >> "$GITHUB_ENV"
-      - run: npm run e2e
+      - run: pnpm e2e
 
   e2e-firefox:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       # Nightly, like Developer Edition, loads an unsigned add-on; release Firefox does not.
       - run: |
-          npx --yes @puppeteer/browsers install firefox@nightly --path "$RUNNER_TEMP/browsers" --format "{{path}}" > "$RUNNER_TEMP/firefox-path"
+          pnpm dlx @puppeteer/browsers install firefox@nightly --path "$RUNNER_TEMP/browsers" --format "{{path}}" > "$RUNNER_TEMP/firefox-path"
           echo "FIREFOX_BIN=$(tail -n 1 "$RUNNER_TEMP/firefox-path")" >> "$GITHUB_ENV"
-      - run: npm run e2e:firefox
+      - run: pnpm e2e:firefox

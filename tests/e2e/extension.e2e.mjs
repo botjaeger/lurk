@@ -1,4 +1,4 @@
-// End-to-end walk of the real extension in headless Chromium: npm run e2e
+// End-to-end walk of the real extension in headless Chromium: pnpm e2e
 // Needs Playwright. PLAYWRIGHT = path to the playwright package (default: resolve "playwright");
 // CHROME_BIN = Chromium/Chrome for Testing binary (default: Playwright's own).
 import { createRequire } from "node:module";

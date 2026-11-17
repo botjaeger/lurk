@@ -5,10 +5,10 @@ Static, three pages (home, privacy policy, terms), built with Vite. No analytics
 self-hosted.
 
 ```sh
-npm install
-npm run dev        # local server with reload
-npm run check      # typecheck + production build
-npm run build      # site/dist/ (on a push to main, ../.github/workflows/pages.yml publishes it to GitHub Pages)
+pnpm install
+pnpm dev        # local server with reload
+pnpm check      # typecheck + production build
+pnpm build      # site/dist/ (on a push to main, ../.github/workflows/pages.yml publishes it to GitHub Pages)
 ```
 
 On each extension release, update `src/release.ts`: each store's `state: "live"` and

@@ -15,21 +15,21 @@ Slack has no read receipts); do not add them back without a live capture showing
 ## Commands
 
 ```bash
-npm install            # dev tools + sets core.hooksPath=.githooks (pre-commit runs npm run check)
-npm --prefix site install  # once: check lints site/ with type-aware rules, which read its types
-npm run format         # Prettier --write (.prettierrc.json, .prettierignore); format:check only checks
-npm run lint           # ESLint (eslint.config.js)
-npm run typecheck      # tsc --noEmit over src/ (tsconfig.json)
-npm run check          # Gate: Prettier check + ESLint + typecheck + node:test (tests/*.test.mjs)
-npm run e2e            # Builds dist/chrome, runs it in headless Chromium against faked sites (5 suites)
-npm run e2e:firefox    # Builds dist/firefox, runs it in headless Firefox Developer Edition
-npm run build          # dist/chrome, dist/firefox, dist/safari + the two store zips
-npm run build:firefox  # one target (likewise build:chrome, build:safari)
-npm run safari:app     # build:safari + xcodebuild (unsigned) -> dist/Lurk.app
-npm run icons          # icons/*.png (and the store icon) from scripts/make-icons.mjs
-npm run store-assets   # Chrome Web Store screenshots, promo tile, icon -> dist/store (needs CHROME_BIN)
-npm run site:dev       # website dev server (npm --prefix site install once)
-npm run site:build     # website typecheck + build -> site/dist
+pnpm install        # dev tools + sets core.hooksPath=.githooks (pre-commit runs pnpm check)
+pnpm format         # Prettier --write (.prettierrc.json, .prettierignore); format:check only checks
+pnpm lint           # ESLint (eslint.config.js)
+pnpm typecheck      # tsc --noEmit over src/ (tsconfig.json) and tests/ (tests/tsconfig.json)
+pnpm check          # Gate: Prettier check + ESLint + typecheck + Vitest (tests/*.test.ts)
+pnpm test           # Vitest unit tests once (pnpm test:watch reruns them on save)
+pnpm e2e            # Builds dist/chrome, runs it in headless Chromium against faked sites (5 suites)
+pnpm e2e:firefox    # Builds dist/firefox, runs it in headless Firefox Developer Edition
+pnpm build          # dist/chrome, dist/firefox, dist/safari + the two store zips
+pnpm build:firefox  # one target (likewise build:chrome, build:safari)
+pnpm safari:app     # build:safari + xcodebuild (unsigned) -> dist/Lurk.app
+pnpm icons          # icons/*.png (and the store icon) from scripts/make-icons.mjs
+pnpm store-assets   # Chrome Web Store screenshots, promo tile, icon -> dist/store (needs CHROME_BIN)
+pnpm site:dev       # website dev server (pnpm install covers it)
+pnpm site:build     # website typecheck + build -> site/dist
 node tests/e2e/stats.e2e.mjs   # one e2e suite
 ```
 
@@ -38,11 +38,11 @@ extensions) and `FIREFOX_BIN` (Developer Edition or Nightly, which load an unsig
 `PUPPETEER` override the package paths; by default the local devDependencies are used. UI tests run headless
 only.
 
-The full local gate before a change is done: `npm run check`, `npm run e2e`, `npm run e2e:firefox`,
-`npm run build`, plus `npm run site:build` when `site/` changed and `npm run safari:app` when the manifest
+The full local gate before a change is done: `pnpm check`, `pnpm e2e`, `pnpm e2e:firefox`,
+`pnpm build`, plus `pnpm site:build` when `site/` changed and `pnpm safari:app` when the manifest
 or file list changed. Each e2e suite prints `ALL PASS n/n`; check the exit code, not only the output.
 
-The pre-commit hook (`.githooks/pre-commit`) runs `npm run check`, and `npm run site:build` when staged files
+The pre-commit hook (`.githooks/pre-commit`) runs `pnpm check`, and `pnpm site:build` when staged files
 touch `site/`. CI (`.github/workflows/ci.yml`) runs check + build + site build, the Chromium suites and the
 Firefox suite (Nightly) on every push and pull request; `.github/workflows/pages.yml` deploys the website from
 `main`. Safari is built and tested only locally (macOS + Xcode).
@@ -56,17 +56,20 @@ Firefox suite (Nightly) on every push and pull request; `.github/workflows/pages
 | `rules.json`, `rules-typing.json` | Static DNR rulesets `block_receipts` (Google Chat + Teams Seen) and `block_typing` (Google Chat typing). |
 | `src/sites.ts` | The one list of supported apps (`SITES`: id, host regex, name, `covers`, optional `note`) and `siteFor(host)`. Imported by the popup and the worker. |
 | `src/shared.ts` | Types and helpers for every script: `Kind`, `KINDS`, the `Stored` storage shape, `readLocal`, `CountMessage`. |
-| `src/content/page.ts` | MAIN world on Facebook, Messenger, Instagram, Teams: socket-frame edits, fetch/XHR answers, worker `postMessage` hook. |
-| `src/content/whatsapp.ts` | MAIN world on WhatsApp: rewrites binary nodes before `crypto.subtle.encrypt`, keeps comms off the worker. |
+| `src/content/page.ts` | MAIN world on Facebook, Messenger, Instagram, Teams: hooks `WebSocket.send`, fetch/XHR and worker `postMessage`; the decisions are in `frames.ts`. |
+| `src/content/frames.ts` | Pure: socket-frame edits (`editFrame`), worker messages (`idleChatStates`), HTTP `classify`. Unit-tested. |
+| `src/content/whatsapp.ts` | MAIN world on WhatsApp: hooks `crypto.subtle.encrypt`, keeps comms off the worker. |
+| `src/content/wabinary.ts` | Pure: WhatsApp binary-node reader (`readString`, `readNode`) and `editStanza`. Unit-tested. |
 | `src/content/gchat.ts` | MAIN world on Google Chat: blocks nothing, only reports counts (the DNR rules block). |
 | `src/content/events.ts` | The page scripts' side of the DOM events: `count()` and `followState()`. |
 | `src/content/bridge.ts` | Isolated world everywhere: sends settings to the page scripts, de-duplicates and forwards counts, answers the popup's `lurk:host`. |
 | `src/popup/` | Toolbar popup (`popup.html`, `popup.css`, `popup.ts`). |
 | `scripts/build.mjs` | Bundles `SCRIPTS` (esbuild, IIFE, unminified) and copies `ASSETS` into `dist/<browser>`, merges the overlay, zips Chrome and Firefox. |
+| `pnpm-workspace.yaml` | pnpm workspace: the root (extension tooling) and `site/`, one `pnpm-lock.yaml`; esbuild may run its install script. |
 | `tsconfig.json` | Strict TypeScript for `src/` (`@types/chrome`); `site/` has its own. |
 | `safari/Lurk/` | Xcode project (Xcode 27 `project.xcproj` format) wrapping `dist/safari`. |
 | `site/` | Website: own `package.json`, Vite, deployed by `.github/workflows/pages.yml`. |
-| `tests/` | `*.test.mjs` (node:test, run by `check`) and `e2e/*.e2e.mjs`. |
+| `tests/` | `*.test.ts` (Vitest, run by `check`; `tests/tsconfig.json`) and `e2e/*.e2e.mjs`. |
 | `eslint.config.js` | ESLint flat config (with typescript-eslint): type-aware rules for all TypeScript, browser/webextension globals for `src/`, no `import()` there, Node for scripts and tests. |
 | `.prettierrc.json`, `.prettierignore` | Prettier, width 100. Markdown is hand-wrapped and not formatted. |
 | `.githooks/pre-commit`, `.github/workflows/` | Pre-commit gate; CI (`ci.yml`) and website deploy (`pages.yml`). |
@@ -100,7 +103,7 @@ A new stored value must also be listed in `site/privacy.html` ("What the extensi
 
 ## Rules for changes
 
-- **Never touch user content.** Socket edits parse the frame (`findKeys`, `escapeTimes` in `page.ts`) and
+- **Never touch user content.** Socket edits parse the frame (`findKeys`, `escapeTimes` in `frames.ts`) and
   change only a real key, never text that merely contains it; WhatsApp edits act on the parsed node.
 - **Keep byte lengths and never drop a request the app waits for.** Rewrite in place, or answer with a fake
   success, so the app does not retry or show an error. A request is only dropped outright when the app
@@ -111,7 +114,7 @@ A new stored value must also be listed in `site/privacy.html` ("What the extensi
 - Patching a native (`fetch`, `XMLHttpRequest.prototype.open`, …) passes the caller's arguments on exactly
   (`...args`): `open(method, url, undefined)` would make the request synchronous.
 - A DNR regex must pass `chrome.declarativeNetRequest.isRegexSupported` (Chrome silently drops rules over its
-  memory limit); prefer `urlFilter` + `requestDomains`. `tests/rules.test.mjs` checks every rule.
+  memory limit); prefer `urlFilter` + `requestDomains`. `tests/rules.test.ts` checks every rule.
 - `requestMethods` in a DNR rule needs Safari 26, which is why `manifest.safari.json` sets that minimum.
 - Firefox runs `background.js` as a background script (an event page with a DOM); Chrome and Safari run it as
   a service worker. Keep it to APIs both have.
@@ -133,9 +136,10 @@ Every one of these changes together:
 
 ## Testing
 
-- `node:test` for pure checks; Playwright (Chromium) and puppeteer-core (Firefox, WebDriver BiDi) for the
-  real extension. Sites are faked with request routing, so content scripts run on the real origins while
-  nothing reaches the apps.
+- Vitest (`tests/*.test.ts`, plain Node, `vitest.config.ts`, typed by `tests/tsconfig.json`) for the pure
+  parts of `src/` and `scripts/`: keep page hooks thin and put decisions in pure modules it can import.
+  Playwright (Chromium) and puppeteer-core (Firefox, WebDriver BiDi) for the real extension. Sites are faked
+  with request routing, so content scripts run on the real origins while nothing reaches the apps.
 - Every new test gets a negative control: break the code it guards, watch it fail, restore.
 - Frame and request shapes come from open-source clients unless captured live. Prefer a captured shape.
 - Live checks use only the tester's own accounts (a chat with yourself, or between two of your own

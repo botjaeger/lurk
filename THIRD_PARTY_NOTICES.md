@@ -2,7 +2,7 @@
 
 ## Baileys
 
-The WhatsApp binary-node reader in `src/content/whatsapp.ts` (`readString`, `readNode`) is adapted from the
+The WhatsApp binary-node reader in `src/content/wabinary.ts` (`readString`, `readNode`) is adapted from the
 WABinary decoder in [WhiskeySockets/Baileys](https://github.com/WhiskeySockets/Baileys).
 
 ```text

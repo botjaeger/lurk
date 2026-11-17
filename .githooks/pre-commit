@@ -1,9 +1,9 @@
 #!/bin/sh
-# Pre-commit gate: Prettier + ESLint + syntax + unit tests (fast). The browser suites (npm run e2e, e2e:firefox) run in CI.
-# Installed by `npm install` (the "prepare" script sets core.hooksPath to .githooks). Skip once: git commit --no-verify.
+# Pre-commit gate: Prettier + ESLint + syntax + unit tests (fast). The browser suites (pnpm e2e, e2e:firefox) run in CI.
+# Installed by `pnpm install` (the "prepare" script sets core.hooksPath to .githooks). Skip once: git commit --no-verify.
 set -e
-npm run --silent check
+pnpm run --silent check
 # The website is typechecked and built only when a staged change touches it.
 if git diff --cached --name-only | grep -q '^site/'; then
-  npm run --silent site:build
+  pnpm run --silent site:build
 fi

@@ -1,4 +1,4 @@
-// Stats in headless Chromium with the real extension: npm run e2e
+// Stats in headless Chromium with the real extension: pnpm e2e
 // Each blocked signal is counted once per read / story / typing burst, per app, only while that
 // signal is being hidden, and shown in the popup's Stats with a two-step reset. Sites are faked with
 // Playwright routes (as in social.e2e.mjs and apps.e2e.mjs).

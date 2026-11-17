@@ -1,8 +1,8 @@
-// Chrome Web Store images, from the real popup: npm run store-assets
+// Chrome Web Store images, from the real popup: pnpm store-assets
 // Loads dist/chrome in headless Chromium, shows the popup in a few states, and lays each one out on a
 // 1280x800 screenshot (JPEG: the store wants no alpha). Also writes the 440x280 small promo tile and
-// copies the store icon (icons/store-icon-128.png, from npm run icons). Output: dist/store/. Needs CHROME_BIN (a Chromium that loads extensions, as for e2e) and
-// the website's packages (npm --prefix site install) for the display font.
+// copies the store icon (icons/store-icon-128.png, from pnpm icons). Output: dist/store/. Needs CHROME_BIN (a Chromium that loads extensions, as for e2e) and
+// the website's packages (pnpm install) for the display font.
 import { createRequire } from "node:module";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

@@ -5,7 +5,7 @@
 //                                           Xcode project in safari/ wraps it into a Mac app)
 // Usage: node scripts/build.mjs [chrome|firefox|safari ...]   (no argument: all three)
 // The TypeScript in src/ is bundled by esbuild: one self-contained classic script (IIFE) per entry,
-// not minified, so store reviewers can read it. Types are checked separately (npm run typecheck).
+// not minified, so store reviewers can read it. Types are checked separately (pnpm typecheck).
 import { execFileSync } from "node:child_process";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";

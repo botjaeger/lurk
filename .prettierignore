@@ -1,7 +1,7 @@
 dist/
 safari/
 _metadata/
-package-lock.json
+pnpm-lock.yaml
 # Hand-wrapped prose and tables.
 *.md
 # Local editor-tool cache.

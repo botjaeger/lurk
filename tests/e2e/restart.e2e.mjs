@@ -1,4 +1,4 @@
-// Browser restarts keep the user's choice, and a pause never survives one: npm run e2e
+// Browser restarts keep the user's choice, and a pause never survives one: pnpm e2e
 // Same env as extension.e2e.mjs (PLAYWRIGHT, CHROME_BIN).
 import { createRequire } from "node:module";
 import { mkdtempSync, rmSync } from "node:fs";

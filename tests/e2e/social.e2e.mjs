@@ -1,4 +1,4 @@
-// Facebook / Messenger / Instagram blocking in headless Chromium with the real extension: npm run e2e
+// Facebook / Messenger / Instagram blocking in headless Chromium with the real extension: pnpm e2e
 // The sites are faked with Playwright routes (pages, GraphQL endpoints and the chat WebSocket), so the
 // real content scripts run on real origins while nothing reaches Meta.
 // Frame shapes follow mautrix/meta (task labels "3" typing, "21" mark read) and Carrier's Lightspeed
