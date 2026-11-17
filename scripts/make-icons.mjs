@@ -1,4 +1,4 @@
-// Renders icons/icon-{16,32,48,128}.png with no dependencies (node:zlib only).
+// Renders icons/icon-{16,32,48,128}.png and icons/store-icon-128.png with no dependencies (node:zlib only).
 // Same design as icons/icon.svg: black rounded square, two eyes peeking over a green bar.
 // Usage: node scripts/make-icons.mjs
 import { deflateSync } from "node:zlib";
@@ -31,9 +31,10 @@ function colorAt(x, y) {
   return BLACK;
 }
 
-function render(size, ss = 6) {
+// `pad` px of transparent border on each side; the artwork fills the rest.
+function render(size, pad = 0, ss = 6) {
   const px = Buffer.alloc(size * size * 4);
-  const scale = 48 / size;
+  const scale = 48 / (size - 2 * pad);
   for (let j = 0; j < size; j++) {
     for (let i = 0; i < size; i++) {
       let r = 0,
@@ -42,7 +43,10 @@ function render(size, ss = 6) {
         a = 0;
       for (let sj = 0; sj < ss; sj++) {
         for (let si = 0; si < ss; si++) {
-          const c = colorAt((i + (si + 0.5) / ss) * scale, (j + (sj + 0.5) / ss) * scale);
+          const c = colorAt(
+            (i - pad + (si + 0.5) / ss) * scale,
+            (j - pad + (sj + 0.5) / ss) * scale,
+          );
           const ca = c[3] / 255;
           r += c[0] * ca;
           g += c[1] * ca;
@@ -99,4 +103,6 @@ function png(size, px) {
 
 const outDir = fileURLToPath(new URL("../icons/", import.meta.url));
 for (const size of [16, 32, 48, 128]) writeFileSync(`${outDir}icon-${size}.png`, render(size));
+// Chrome Web Store icon: 96x96 artwork with 16 px of transparent padding (the store's image guidelines).
+writeFileSync(`${outDir}store-icon-128.png`, render(128, 16));
 console.log("icons written to", outDir);

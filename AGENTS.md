@@ -26,7 +26,8 @@ npm run e2e:firefox    # Builds dist/firefox, runs it in headless Firefox Develo
 npm run build          # dist/chrome, dist/firefox, dist/safari + the two store zips
 npm run build:firefox  # one target (likewise build:chrome, build:safari)
 npm run safari:app     # build:safari + xcodebuild (unsigned) -> dist/Lurk.app
-npm run icons          # icons/*.png from scripts/make-icons.mjs
+npm run icons          # icons/*.png (and the store icon) from scripts/make-icons.mjs
+npm run store-assets   # Chrome Web Store screenshots, promo tile, icon -> dist/store (needs CHROME_BIN)
 npm run site:dev       # website dev server (npm --prefix site install once)
 npm run site:build     # website typecheck + build -> site/dist
 node tests/e2e/stats.e2e.mjs   # one e2e suite

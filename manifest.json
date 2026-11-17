@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Lurk",
   "version": "0.1.0",
-  "description": "Read without the receipt: hides Seen, story views and typing on Google Chat, Messenger, Facebook, Instagram, WhatsApp and Teams.",
+  "description": "Read without the receipt: hides Seen, typing and story views in web chat apps.",
   "permissions": ["declarativeNetRequest", "storage", "alarms", "activeTab"],
   "background": {
     "service_worker": "background.js"
