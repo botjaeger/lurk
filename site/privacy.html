@@ -24,89 +24,122 @@
         <a href="./">Home</a>
         <a href="./privacy.html" aria-current="page">Privacy</a>
         <a href="./terms.html">Terms</a>
+        <a href="https://github.com/botjaeger/lurk">Source</a>
       </nav>
     </header>
 
-    <main id="main" class="doc">
+    <main id="main" class="wrap doc-page">
+      <p class="eyebrow">Last updated 17 November 2026</p>
       <h1 class="display">Privacy Policy</h1>
-      <p class="updated">Last updated: 17 November 2026</p>
 
       <div class="summary">
+        <p class="summary-title">The short version</p>
         <p>
-          <strong>The short version:</strong> Lurk collects no personal data. It never reads, stores
-          or sends your messages. Its settings and counts stay in your browser, and there is no
-          account.
+          Lurk collects no personal data. It never reads, stores or sends your messages. Its
+          settings and counts stay in your browser, and there is no account.
         </p>
       </div>
 
-      <p>
-        This policy covers the Lurk browser extension for Chrome, Firefox and Safari ("the
-        extension") and this website ("the website").
-      </p>
+      <div class="doc-cols">
+        <nav class="toc" aria-labelledby="toc-heading">
+          <p id="toc-heading" class="eyebrow">On this page</p>
+          <ul>
+            <li><a href="#collects">What it collects</a></li>
+            <li><a href="#looks">What it looks at</a></li>
+            <li><a href="#stores">What it stores</a></li>
+            <li><a href="#permissions">Permissions</a></li>
+            <li><a href="#website">The website</a></li>
+            <li><a href="#children">Children</a></li>
+            <li><a href="#changes">Changes</a></li>
+            <li><a href="#contact">Contact</a></li>
+          </ul>
+        </nav>
 
-      <h2>What the extension collects</h2>
-      <p>
-        Nothing. The extension has no servers, no analytics, no tracking and no advertising. It
-        never sends any data off your device.
-      </p>
+        <div class="doc">
+          <p>
+            This policy covers the Lurk browser extension for Chrome, Firefox and Safari ("the
+            extension") and this website ("the website").
+          </p>
 
-      <h2>What the extension looks at</h2>
-      <p>
-        On the supported chat apps only, the extension looks at the requests the app is about to
-        send, to recognise a read receipt, a story view or a typing signal. When it finds one, it
-        changes or stops that request in your browser. It does not read, keep or send the content of
-        your messages, stories or contacts.
-      </p>
+          <h2 id="collects">What the extension collects</h2>
+          <p>
+            Nothing. The extension has no servers, no analytics, no tracking and no advertising. It
+            never sends any data off your device.
+          </p>
 
-      <h2>What the extension stores on your device</h2>
-      <p>
-        The extension keeps a few values in your browser's own extension storage. They never leave
-        your device:
-      </p>
-      <ul>
-        <li>whether Lurk is switched on, and which signals to hide (Seen, story views, typing);</li>
-        <li>your light or dark theme for the popup;</li>
-        <li>
-          how many Seen receipts, story views and typing signals it hid on each app, and the date
-          counting started;
-        </li>
-        <li>when a 10-second "let receipts through" pass ends, while one is running.</li>
-      </ul>
-      <p>"Reset stats" in the popup clears the counts. Removing the extension deletes all of it.</p>
+          <h2 id="looks">What the extension looks at</h2>
+          <p>
+            On the supported chat apps only, the extension looks at the requests the app is about to
+            send, to recognise a read receipt, a story view or a typing signal. When it finds one,
+            it changes or stops that request in your browser. It does not read, keep or send the
+            content of your messages, stories or contacts.
+          </p>
 
-      <h2>Why the extension needs its permissions</h2>
-      <ul>
-        <li>
-          <strong>Access to the supported apps</strong> (chat.google.com, facebook.com,
-          messenger.com, instagram.com, web.whatsapp.com, teams.microsoft.com, teams.live.com,
-          teams.cloud.microsoft): to run there and hide the signals described above. It does nothing
-          on any other site.
-        </li>
-        <li>
-          <strong>declarativeNetRequest:</strong> to block the Google Chat and Teams read-receipt
-          requests and the Google Chat typing request with the browser's built-in rules.
-        </li>
-        <li><strong>storage:</strong> to keep the settings and counts listed above.</li>
-        <li><strong>alarms:</strong> to turn hiding back on when a 10-second pass ends.</li>
-        <li>
-          <strong>activeTab:</strong> to show in the popup which app the open tab is on. The address
-          is read on your device when you open the popup, and never stored or sent.
-        </li>
-      </ul>
+          <h2 id="stores">What the extension stores on your device</h2>
+          <p>
+            The extension keeps a few values in your browser's own extension storage. They never
+            leave your device:
+          </p>
+          <ul class="rows">
+            <li>
+              whether Lurk is switched on, and which signals to hide (Seen, story views, typing);
+            </li>
+            <li>your light or dark theme for the popup;</li>
+            <li>
+              how many Seen receipts, story views and typing signals it hid on each app, and the
+              date counting started;
+            </li>
+            <li>when a 10-second "let receipts through" pass ends, while one is running.</li>
+          </ul>
+          <p>
+            "Reset stats" in the popup clears the counts. Removing the extension deletes all of it.
+          </p>
 
-      <h2>The website</h2>
-      <p>
-        The website has no cookies, no sign-up and no analytics, and its fonts are served from the
-        website itself. The company hosting it may log technical data such as your IP address for
-        security purposes. The store links lead to the Chrome Web Store, Firefox Add-ons or the Mac
-        App Store, which have their own privacy policies.
-      </p>
+          <h2 id="permissions">Why the extension needs its permissions</h2>
+          <ul class="rows">
+            <li>
+              <strong>Access to the supported apps</strong> (chat.google.com, facebook.com,
+              messenger.com, instagram.com, web.whatsapp.com, teams.microsoft.com, teams.live.com,
+              teams.cloud.microsoft): to run there and hide the signals described above. It does
+              nothing on any other site.
+            </li>
+            <li>
+              <strong>declarativeNetRequest:</strong> to block the Google Chat and Teams
+              read-receipt requests and the Google Chat typing request with the browser's built-in
+              rules.
+            </li>
+            <li><strong>storage:</strong> to keep the settings and counts listed above.</li>
+            <li><strong>alarms:</strong> to turn hiding back on when a 10-second pass ends.</li>
+            <li>
+              <strong>activeTab:</strong> to show in the popup which app the open tab is on. The
+              address is read on your device when you open the popup, and never stored or sent.
+            </li>
+          </ul>
 
-      <h2>Children</h2>
-      <p>The extension and the website collect no data from anyone, including children.</p>
+          <h2 id="website">The website</h2>
+          <p>
+            The website has no cookies, no sign-up and no analytics, and its fonts are served from
+            the website itself. The company hosting it may log technical data such as your IP
+            address for security purposes. The store links lead to the Chrome Web Store, Firefox
+            Add-ons or the Mac App Store, which have their own privacy policies.
+          </p>
 
-      <h2>Changes</h2>
-      <p>If this policy changes, the new version will be posted on this page with a new date.</p>
+          <h2 id="children">Children</h2>
+          <p>The extension and the website collect no data from anyone, including children.</p>
+
+          <h2 id="changes">Changes</h2>
+          <p>
+            If this policy changes, the new version will be posted on this page with a new "Last
+            updated" date.
+          </p>
+
+          <h2 id="contact">Contact</h2>
+          <p>
+            Questions about this policy: open an issue on
+            <a href="https://github.com/botjaeger/lurk/issues">GitHub</a>.
+          </p>
+        </div>
+      </div>
     </main>
 
     <footer class="footer">
@@ -115,6 +148,7 @@
         <nav aria-label="Footer">
           <a href="./">Home</a>
           <a href="./terms.html">Terms</a>
+          <a href="https://github.com/botjaeger/lurk">Source</a>
         </nav>
       </div>
     </footer>
