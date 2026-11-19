@@ -56,7 +56,7 @@ test("rule shapes are valid for declarativeNetRequest", () => {
 test("Teams read-receipt rule: PUT to the consumption horizon on Teams hosts only", () => {
   const { condition } = rules[1];
   expect(condition.urlFilter).toBe(
-    "/v1/users/ME/conversations/*/properties?name=consumptionhorizon",
+    "/v1/users/ME/conversations/*/properties?*name=consumptionhorizon^",
   );
   expect(condition.requestMethods).toEqual(["put"]);
   expect(condition.requestDomains).toEqual([

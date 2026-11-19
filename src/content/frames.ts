@@ -186,8 +186,55 @@ const SEEN_NAME = /markasseen|markthread(as)?(seen|read)|directseen|markitemssee
 function friendlyName(body: string, header: string) {
   if (header) return header;
   const match = /(?:^|&)fb_api_req_friendly_name=([^&]*)/.exec(body);
-  return match ? decodeURIComponent(match[1]) : "";
+  if (!match) return "";
+  try {
+    return decodeURIComponent(match[1].replace(/\+/g, " "));
+  } catch {
+    return "";
+  }
 }
+
+// Every key name in a JSON value, lower-cased. Text someone typed is a string value, never a key.
+function keysOf(value: unknown, out: Set<string>, depth: number) {
+  if (depth > 8 || !value || typeof value !== "object") return;
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    out.add(key.toLowerCase());
+    keysOf(item, out, depth + 1);
+  }
+}
+
+/**
+ * The names a request body is built from: a JSON body's keys, or a form's field names and the keys
+ * of its `variables` JSON. Never the values, which hold what people write.
+ */
+function bodyKeys(body: string) {
+  const out = new Set<string>();
+  if (!body || body.length > 200_000) return out;
+  const json = (text: string) => {
+    try {
+      keysOf(JSON.parse(text), out, 0);
+    } catch {
+      // Not JSON.
+    }
+  };
+  if (/^\s*[[{]/.test(body)) {
+    json(body);
+    return out;
+  }
+  for (const [key, value] of new URLSearchParams(body)) {
+    out.add(key.toLowerCase());
+    if (key === "variables") json(value);
+  }
+  return out;
+}
+
+// A GraphQL query only reads (a story's viewer list, a thread's "seen by"); only mutations mark.
+const isQuery = (name: string) => /Query$/.test(name);
+// Instagram's REST call that marks a DM seen: POST …/direct_v2/threads/<id>/items/<id>/seen/ (or
+// …/threads/<id>/mark_read/). Loading the thread (GET …/threads/<id>/?…unseen…) must pass.
+const IG_DIRECT_SEEN = /\/direct_v2\/threads\/[^/?#]+\/(items\/[^/?#]+\/seen|mark_read)\/?(\?|#|$)/;
+// Teams typing is a message posted to a conversation.
+const TEAMS_MESSAGES = /\/conversations\/[^/?#]+\/messages\/?(\?|#|$)/;
 
 // Teams: read receipts move your "consumption horizon" (PUT …/properties?name=consumptionhorizon);
 // typing is a message whose messagetype is Control/Typing (or Control/ClearTyping when you stop).
@@ -195,22 +242,43 @@ const TEAMS_HORIZON =
   /\/v1\/users\/ME\/conversations\/[^/?]+\/properties\?(.*&)?name=consumptionhorizon(&|$)/;
 const TEAMS_TYPING = /"messagetype"\s*:\s*"Control\/(Clear)?Typing"/i;
 
+// FNV-1a, so a long body fits the bridge's 300-character key.
+const hash = (text: string) => {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
+  return (h >>> 0).toString(36);
+};
+
+/**
+ * What tells one blocked request from another for Stats: the address, the GraphQL name and its
+ * `variables` (the story or thread). Facebook's form bodies all open with the same session fields,
+ * so their first characters cannot tell two story views apart.
+ */
+export function requestKey(url: string, body: string, header: string) {
+  const name = friendlyName(body, header);
+  const form = /^\s*[[{]/.test(body) ? null : new URLSearchParams(body);
+  const variables = form?.get("variables") ?? "";
+  return `${name.slice(0, 100)}|${hash(`${url}\n${variables || body}`)}`;
+}
+
 /**
  * The signal an HTTP request carries, or null. `header` is the x-fb-friendly-name request header;
  * without it the name is read from the form body.
  */
 export function classify(url: string, body: string, header: string, method = "GET"): Kind | null {
   if (TEAMS_HORIZON.test(url) && method.toUpperCase() === "PUT") return "seen";
-  if (body.length < 2000 && TEAMS_TYPING.test(body)) return "typing";
+  if (TEAMS_MESSAGES.test(url) && body.length < 2000 && TEAMS_TYPING.test(body)) return "typing";
   const name = friendlyName(body, header);
-  const lowerBody = body.toLowerCase();
+  const mutation = Boolean(name) && !isQuery(name);
+  const keys = bodyKeys(body);
+  const post = method.toUpperCase() === "POST";
   if (
-    (/seen/i.test(name) && /stor(y|ies)|reel/i.test(name)) ||
-    /\/stories\/reel\/seen/.test(url) ||
-    STORY_IDS.some((id) => lowerBody.includes(id))
+    (mutation && /seen/i.test(name) && /stor(y|ies)|reel/i.test(name)) ||
+    (post && /\/stories\/reel\/seen\/?(\?|#|$)/.test(url)) ||
+    STORY_IDS.some((id) => keys.has(id) || name.toLowerCase() === id)
   ) {
     return "stories";
   }
-  if (SEEN_NAME.test(name) || /\/direct_v2\/threads\/.*(seen|mark_read)/.test(url)) return "seen";
+  if ((mutation && SEEN_NAME.test(name)) || (post && IG_DIRECT_SEEN.test(url))) return "seen";
   return null;
 }

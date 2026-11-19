@@ -59,7 +59,8 @@ export function uploadOutcome(state) {
 }
 
 async function call(url, init, what) {
-  const response = await fetch(url, init);
+  // A hung connection would otherwise hold the job until GitHub's 6-hour limit.
+  const response = await fetch(url, { ...init, signal: AbortSignal.timeout(120_000) });
   const text = await response.text();
   if (!response.ok) throw new Error(`${what}: HTTP ${response.status} ${text}`);
   return text ? JSON.parse(text) : {};

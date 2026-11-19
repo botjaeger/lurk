@@ -9,6 +9,14 @@
       content="Lurk collects no personal data. What the extension keeps on your device, what its permissions are for, and how this website handles visits."
     />
     <meta name="theme-color" content="#0b0c0b" />
+    <link rel="canonical" href="https://botjaeger.github.io/lurk/privacy.html" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Lurk" />
+    <meta property="og:title" content="Privacy Policy — Lurk" />
+    <meta property="og:description" content="Lurk collects no personal data." />
+    <meta property="og:url" content="https://botjaeger.github.io/lurk/privacy.html" />
+    <meta property="og:image" content="https://botjaeger.github.io/lurk/icon-128.png" />
+    <meta name="twitter:card" content="summary" />
     <link rel="icon" href="/icon-32.png" />
     <script type="module" src="/src/main.ts"></script>
   </head>
@@ -104,13 +112,14 @@
             <li>
               <strong>Access to the supported apps</strong> (chat.google.com, facebook.com,
               messenger.com, instagram.com, web.whatsapp.com, teams.microsoft.com, teams.live.com,
-              teams.cloud.microsoft): to run there and hide the signals described above. It does
-              nothing on any other site.
+              teams.cloud.microsoft): to run there and hide the signals described above. It runs on
+              no other site.
             </li>
             <li>
               <strong>declarativeNetRequest:</strong> to block the Google Chat and Teams
               read-receipt requests and the Google Chat typing request with the browser's built-in
-              rules.
+              rules, also for Chat in Gmail (mail.google.com). These rules match only those requests
+              and do not read the page.
             </li>
             <li><strong>storage:</strong> to keep the settings and counts listed above.</li>
             <li><strong>alarms:</strong> to turn hiding back on when a 10-second pass ends.</li>

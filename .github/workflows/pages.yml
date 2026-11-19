@@ -7,10 +7,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Read-only by default; only deploy writes (it publishes to Pages).
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -29,7 +28,8 @@ jobs:
       # Only the website's packages, not the extension's dev tools.
       - run: pnpm install --frozen-lockfile --filter lurk-site
       - run: pnpm site:build
-      - uses: actions/configure-pages@v6
+      # No configure-pages: it reads the Pages API, which this read-only job cannot, and its outputs are
+      # unused (the site's URLs are relative, base "./").
       - uses: actions/upload-pages-artifact@v5
         with:
           path: site/dist
@@ -37,6 +37,9 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write # deploy-pages proves the run's identity to Pages
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

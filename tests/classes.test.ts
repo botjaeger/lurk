@@ -139,11 +139,49 @@ test("C5: website text colours meet contrast on every surface they sit on", () =
     for (const surface of surfaces)
       expect(contrast(ink, surface), `${ink} on ${surface}`).toBeGreaterThanOrEqual(4.5);
   expect(contrast(t["on-accent"], t.accent)).toBeGreaterThanOrEqual(4.5);
-  // Every rule that sets white text on a literal colour (the mock chat's avatar and bubbles).
-  for (const rule of css.matchAll(/\{[^}]*\}/g)) {
-    const bg = /background: (#[0-9a-f]{6});/i.exec(rule[0])?.[1];
-    if (bg && /\bcolor: #fff;/.test(rule[0]))
-      expect(contrast("#ffffff", bg), `#fff on ${bg}`).toBeGreaterThanOrEqual(4.5);
+  const rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].map((m) => ({
+    selector: m[1].trim(),
+    body: m[2],
+  }));
+  const literal = (body: string, prop: string) => {
+    const value = new RegExp(`(?:^|[;\\s])${prop}: (#[0-9a-f]{3}(?:[0-9a-f]{3})?);`, "i").exec(
+      body,
+    )?.[1];
+    return value?.length === 4 ? `#${[...value.slice(1)].map((c) => c + c).join("")}` : value;
+  };
+  // The popup replica keeps the popup's light colours: its text sits on the card or on a row.
+  const replica = rules.find((r) => r.selector === ".replica")?.body ?? "";
+  const replicaSurfaces = [literal(replica, "background"), "#f0f3ef"];
+  for (const { selector, body } of rules) {
+    const fg = literal(body, "color");
+    if (!fg) continue;
+    const bg = literal(body, "background");
+    // A literal text colour on its own literal background (avatar, bubbles, replica hero, status).
+    const on = bg ? [bg] : selector.startsWith(".replica") ? replicaSurfaces : [];
+    for (const surface of on)
+      expect(contrast(fg, surface!), `${selector}: ${fg} on ${surface}`).toBeGreaterThanOrEqual(
+        4.5,
+      );
+  }
+  // Text faded with opacity: its token colour, blended into each surface, still meets 4.5:1.
+  for (const { selector, body } of rules) {
+    const alpha = /opacity: ([\d.]+);/.exec(body)?.[1];
+    const token = /\bcolor: var\(--([\w-]+)\)/.exec(body)?.[1];
+    if (!alpha || !token) continue;
+    for (const surface of surfaces) {
+      const [f, b] = [hex(t[token]), hex(surface)];
+      const mixed = `#${f
+        .map((v, i) =>
+          Math.round(v * +alpha + b[i] * (1 - +alpha))
+            .toString(16)
+            .padStart(2, "0"),
+        )
+        .join("")}`;
+      expect(
+        contrast(mixed, surface),
+        `${selector}: --${token} at ${alpha} on ${surface}`,
+      ).toBeGreaterThanOrEqual(4.5);
+    }
   }
 });
 
@@ -204,4 +242,113 @@ test("C2: every manifest host is a supported app and named in the privacy policy
     const named = pattern.replace(/^\*\./, "");
     expect(privacy.includes(named), `privacy.html names ${named}`).toBe(true);
   }
+});
+
+// ---- C8: the website's static copy contradicts the store states in site/src/release.ts ----------
+// main.ts rewrites the cards at load; the HTML must already say the same, for a visitor without
+// scripts, a crawler and a link preview.
+test("C8: each store card and the hero pill match release.ts", () => {
+  const release = read("site/src/release.ts");
+  const stores = [...release.matchAll(/(\w+): \{([^}]*)\}/g)].map(([, id, body]) => ({
+    id,
+    name: /name: "([^"]+)"/.exec(body)?.[1] ?? "",
+    store: /store: "([^"]+)"/.exec(body)?.[1] ?? "",
+    state: /state: "(live|pending)"/.exec(body)?.[1] ?? "",
+    url: /url: "([^"]+)"/.exec(body)?.[1],
+  }));
+  expect(stores.map((s) => s.id)).toEqual(["chrome", "firefox", "safari"]);
+  const html = read("site/index.html").replace(/\s+/g, " ");
+  for (const s of stores) {
+    const card = new RegExp(`data-store="${s.id}"(.*?)</div>`).exec(html)?.[1] ?? "";
+    const status = /data-store-status>([^<]*)</.exec(card)?.[1].trim();
+    const link = /<a ([^>]*data-store-link[^>]*)>/.exec(card)?.[1] ?? "";
+    if (s.state === "live") {
+      expect(s.url, `${s.id} url`).toMatch(/^https:\/\//);
+      expect(status, s.id).toBe(`On the ${s.store}`);
+      expect(link, s.id).toContain(`href="${s.url}"`);
+      expect(link, s.id).not.toMatch(/\bhidden\b/);
+    } else {
+      expect(status, s.id).not.toMatch(/^On the /);
+      expect(link, s.id).toMatch(/\bhidden\b/);
+    }
+  }
+  const pill = /<span class="pill-dot"><\/span>([^<]*)</.exec(html)?.[1] ?? "";
+  const soon = /([^·]*) soon\s*$/.exec(pill)?.[1] ?? "";
+  for (const s of stores)
+    if (s.state === "live")
+      expect(pill.replace(soon, ""), `pill: ${s.name} live`).toContain(s.name);
+    else expect(soon, `pill: ${s.name} soon`).toContain(s.name);
+});
+
+test("C2: every host a network rule acts on is named in the privacy policy", () => {
+  const privacy = read("site/privacy.html").replace(/\s+/g, " ");
+  interface Rule {
+    condition: { regexFilter?: string; urlFilter?: string; requestDomains?: string[] };
+  }
+  const hosts = ["rules.json", "rules-typing.json"].flatMap((file) =>
+    (JSON.parse(read(file)) as Rule[]).flatMap(({ condition: c }) => {
+      if (c.requestDomains) return c.requestDomains;
+      // "^https://(chat|mail)\.google\.com/…" names chat.google.com and mail.google.com.
+      const m = /^\^https:\/\/(?:\(([\w|]+)\))?((?:\\\.|[\w-])+)\//.exec(c.regexFilter ?? "");
+      expect(m, `a rule without a readable host: ${JSON.stringify(c)}`).not.toBeNull();
+      const rest = m![2].replace(/\\\./g, ".");
+      return m![1] ? m![1].split("|").map((sub) => sub + rest) : [rest];
+    }),
+  );
+  expect(hosts).toContain("mail.google.com");
+  for (const host of new Set(hosts))
+    expect(privacy.includes(host), `privacy.html names ${host}`).toBe(true);
+});
+
+// ---- C9: website content wider than a zoomed phone, cut off by body's overflow-x: clip ----------
+// At 200% zoom a 390 px phone is 195 CSS px wide. body clips overflow, so anything wider is lost
+// without a scrollbar. Grid tracks must be able to shrink, long words must wrap, and nothing on a
+// narrow screen may have a fixed width over 195 px.
+test("C9: website layout shrinks to 195 CSS px", () => {
+  const css = read("site/src/style.css");
+  const tracks = [...css.matchAll(/grid-template-columns: ([^;]+);/g)].map((m) => m[1]);
+  for (const value of tracks)
+    expect(value.replace(/minmax\([^)]*\)/g, ""), `grid track "${value}"`).not.toMatch(/\dfr/);
+  const body = /\nbody \{([^}]*)\}/.exec(css)?.[1] ?? "";
+  expect(body).toMatch(/overflow-wrap: (break-word|anywhere);/);
+  // Inside the narrow-screen media queries, no bare fixed width wider than the zoomed phone.
+  for (const block of css.matchAll(/@media \(max-width: (\d+)px\) \{([\s\S]*?)\n\}/g))
+    for (const m of block[2].matchAll(/(?:^|[\s;])(?:min-)?width: (\d+)px;/g))
+      expect(+m[1], `@media ${block[1]}px: width ${m[1]}px`).toBeLessThanOrEqual(195);
+});
+
+// ---- C10: a native patch that rebuilds the caller's arguments ------------------------------------
+// The page's natives (fetch, XHR, WebSocket.send, postMessage, crypto.subtle.encrypt, the page's own
+// hooks) are called with the caller's arguments and `this` passed on as given: `native.apply(this,
+// args)`. Rebuilding them (`native.call(this, a, b)`) turns `ws.send()` into a sent "undefined" and
+// `open(method, url, undefined)` into a synchronous request.
+test("C10: every patched native takes ...args and passes them on with apply", () => {
+  const offenders: string[] = [];
+  for (const file of sources("src/content")) {
+    const lines = read(file).split("\n");
+    lines.forEach((line, i) => {
+      if (/\b(native\w*|chained\b.*)\.call\(/.test(line))
+        offenders.push(`${file}:${i + 1}: ${line.trim()}`);
+      // A patch: `x.y = function name(` (or a returned `function name(`) whose signature, within
+      // the next lines, must take ...args.
+      if (/(=|return|=>)\s*function \w+\(/.test(line) || /^\s+function \w+\(this/.test(line)) {
+        const signature = lines.slice(i, i + 4).join(" ");
+        if (!/\.\.\.args/.test(signature.slice(0, signature.indexOf("{") + 1 || undefined)))
+          offenders.push(`${file}:${i + 1}: ${line.trim()}`);
+      }
+    });
+  }
+  expect(offenders, "take ...args and call native.apply(this, args)").toEqual([]);
+});
+
+// ---- C12: a request classified by what someone wrote, or by a call that only reads ---------------
+test("C12: frames.ts classify() reads names and keys, never a body's free text", () => {
+  const source = read("src/content/frames.ts");
+  const classify = source.slice(source.indexOf("export function classify("));
+  // Free-text searches of the body; TEAMS_TYPING is allowed only behind the Teams messages URL.
+  expect(classify).not.toMatch(/body\.(toLowerCase\(\)\.)?includes\(|lowerBody/);
+  expect(classify).toMatch(/TEAMS_MESSAGES\.test\(url\) && [^\n]*TEAMS_TYPING\.test\(body\)/);
+  // URL checks for a marking call require its method.
+  for (const m of classify.matchAll(/\/\\\/[^\n]*?\.test\(url\)/g))
+    expect(classify.slice(Math.max(0, m.index - 40), m.index), m[0]).toMatch(/post &&|PUT/);
 });

@@ -218,6 +218,70 @@ await wait(700);
 s = await swState();
 check("final on", s.rulesets.includes("block_receipts") && s.badge === "");
 
+// The toolbar title names what is hidden when a Hide switch is off (C11): "read receipts blocked"
+// would be untrue with Seen off.
+await page.locator('[data-signal="seen"]').click();
+await wait(500);
+s = await swState();
+check(
+  "Seen off: toolbar title names what is hidden",
+  s.title === "Lurk: hiding story views and typing" && s.rulesets.join() === "block_typing",
+  s,
+);
+await page.locator('[data-signal="seen"]').click();
+await wait(500);
+check(
+  "all on: title says read receipts blocked",
+  (await swState()).title === "Lurk: read receipts blocked",
+);
+
+// A theme change or the session mark does not re-apply the rules; a setting does.
+await sw.evaluate(() => {
+  self.__applies = 0;
+  const setTitle = chrome.action.setTitle.bind(chrome.action);
+  chrome.action.setTitle = (...a) => (self.__applies++, setTitle(...a));
+});
+await sw.evaluate(() => chrome.storage.local.set({ theme: "dark" }));
+await sw.evaluate(() => chrome.storage.session.set({ running: true }));
+await wait(400);
+check("theme and session writes do not re-apply", (await sw.evaluate(() => self.__applies)) === 0);
+await sw.evaluate(() => chrome.storage.local.remove("theme"));
+
+// The hero switch's focus ring against the card behind it, rendered, both themes, on and off (C5).
+for (const scheme of ["light", "dark"]) {
+  await page.emulateMedia({ colorScheme: scheme });
+  for (const enabled of [true, false]) {
+    await sw.evaluate((e) => chrome.storage.local.set({ enabled: e }), enabled);
+    await wait(300);
+    await page.locator("#theme").focus();
+    await page.keyboard.press("Tab");
+    const ring = await page.evaluate(() => {
+      const rgb = (c) =>
+        c
+          .match(/\d+(\.\d+)?/g)
+          .slice(0, 3)
+          .map(Number);
+      const lum = (c) =>
+        rgb(c)
+          .map((v) => (v / 255 <= 0.03928 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4))
+          .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+      const el = document.activeElement;
+      const [a, b] = [
+        lum(getComputedStyle(el).outlineColor),
+        lum(getComputedStyle(document.getElementById("hero")).backgroundColor),
+      ].sort((x, y) => y - x);
+      return { id: el.id, ratio: (a + 0.05) / (b + 0.05) };
+    });
+    check(
+      `${scheme}, ${enabled ? "on" : "off"}: hero switch focus ring 3:1 on its card`,
+      ring.id === "enabled" && ring.ratio >= 3,
+      ring,
+    );
+  }
+}
+await sw.evaluate(() => chrome.storage.local.set({ enabled: true }));
+await page.emulateMedia({ colorScheme: "light" });
+
 check("no console/page errors", errors.length === 0, errors);
 await ctx.close();
 console.log(

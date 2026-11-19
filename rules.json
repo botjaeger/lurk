@@ -13,7 +13,7 @@
     "priority": 1,
     "action": { "type": "block" },
     "condition": {
-      "urlFilter": "/v1/users/ME/conversations/*/properties?name=consumptionhorizon",
+      "urlFilter": "/v1/users/ME/conversations/*/properties?*name=consumptionhorizon^",
       "requestDomains": ["teams.microsoft.com", "teams.live.com", "teams.cloud.microsoft"],
       "requestMethods": ["put"],
       "resourceTypes": ["xmlhttprequest", "ping", "other"]

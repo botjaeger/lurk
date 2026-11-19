@@ -12,8 +12,11 @@
 // Chrome and Safari run this as a service worker, Firefox as a background script.
 import {
   KINDS,
+  KIND_WORDS,
   PAUSE_MS,
   isKind,
+  isSetting,
+  listWords,
   readLocal,
   type CountMessage,
   type Kind,
@@ -57,9 +60,14 @@ async function apply() {
     text: state.blocking ? "" : state.paused ? `${secondsLeft}s` : "OFF",
   });
   await chrome.action.setBadgeBackgroundColor({ color: "#C5221F" });
+  // With some Hide switches off, the title names what is hidden: "read receipts blocked" would be
+  // untrue with Seen switched off.
+  const hiding = KINDS.filter((key) => state.signals[key] !== false);
   await chrome.action.setTitle({
     title: state.blocking
-      ? "Lurk: read receipts blocked"
+      ? hiding.length === KINDS.length
+        ? "Lurk: read receipts blocked"
+        : `Lurk: hiding ${listWords(hiding.map((key) => KIND_WORDS[key]))}`
       : state.paused
         ? "Lurk: receipts let through briefly"
         : "Lurk: read receipts are being sent",
@@ -142,9 +150,10 @@ chrome.runtime.onMessage.addListener((message: Partial<CountMessage> | null, sen
 
 chrome.runtime.onInstalled.addListener(sync);
 chrome.runtime.onStartup.addListener(sync);
-// Only settings changes need the rules re-applied; a stats update does not.
-chrome.storage.onChanged.addListener((changes) => {
-  if (Object.keys(changes).some((key) => key !== "stats")) void sync();
+// Only settings changes need the rules re-applied; a stats update, the popup's theme and the
+// session's "running" mark do not.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && Object.keys(changes).some(isSetting)) void sync();
 });
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === ALARM) void sync();

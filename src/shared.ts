@@ -8,6 +8,17 @@ export const isKind = (value: unknown): value is Kind => KINDS.includes(value as
 
 export type Signals = Record<Kind, boolean>;
 
+/** How the popup's status and the toolbar title name each signal. */
+export const KIND_WORDS: Record<Kind, string> = {
+  seen: "Seen",
+  stories: "story views",
+  typing: "typing",
+};
+
+/** "a", "a and b", "a, b and c". */
+export const listWords = (words: string[]) =>
+  words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`;
+
 /** local.stats: counts of hidden signals per app (sites.ts id). */
 export interface Stats {
   since: number;
@@ -26,6 +37,10 @@ export interface Stored {
   /** Absent: follow the system. */
   theme?: "light" | "dark";
 }
+
+/** The stored keys that change what is blocked (a change re-applies them; stats and theme do not). */
+export const SETTINGS = ["enabled", "signals", "pauseUntil"] as const;
+export const isSetting = (key: string) => (SETTINGS as readonly string[]).includes(key);
 
 export const readLocal = <K extends keyof Stored>(keys: K[]) =>
   chrome.storage.local.get<Pick<Stored, K>>(keys);

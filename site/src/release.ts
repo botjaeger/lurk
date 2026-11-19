@@ -11,7 +11,12 @@ export const STORES: Record<
   Browser,
   { name: string; store: string; state: "live" | "pending"; url?: string }
 > = {
-  chrome: { name: "Chrome", store: "Chrome Web Store", state: "pending" },
+  chrome: {
+    name: "Chrome",
+    store: "Chrome Web Store",
+    state: "live",
+    url: "https://chromewebstore.google.com/detail/lurk/niknnfeppnikjmdeobipmimojaikecfm",
+  },
   firefox: { name: "Firefox", store: "Firefox Add-ons", state: "pending" },
   safari: { name: "Safari", store: "Mac App Store", state: "pending" },
 };

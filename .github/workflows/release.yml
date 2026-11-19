@@ -1,18 +1,19 @@
-# Publishes the Chrome build to the Chrome Web Store when a version tag is pushed:
-#   bump "version" in manifest.json, commit, then `git tag v<version> && git push origin v<version>`.
-# The tag must match manifest.json. The full gate (check + Chromium e2e) runs first; the upload is
-# then submitted for review and goes live when it passes (or is staged, with publish_type).
-# Settings live in the "chrome-web-store" environment (Settings > Environments):
-#   secrets CWS_PUBLISHER_ID, CWS_EXTENSION_ID;
-#   variables GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT (keyless sign-in as the service
-#   account added in the Developer Dashboard), or instead secrets CWS_CLIENT_ID, CWS_CLIENT_SECRET,
-#   CWS_REFRESH_TOKEN. See README.md, "Releasing". A manual run (to stage instead) must pick the tag
-#   under "Use workflow from"; on a branch the tag check fails.
 name: Release
 
+# Runs when `pnpm release <version>` pushes a v<version> tag (same process as botjaeger/brainrot).
+# One gate job builds the packages; Chrome, Firefox and the GitHub release then run as separate
+# jobs, so one store's rejection never blocks the other. A failed store job can be re-run alone
+# from the Actions page; a store whose credentials are missing is skipped with a warning.
+# A manual run (Chrome only, e.g. STAGED_PUBLISH to hold it after review) must pick the tag under
+# "Use workflow from"; on a branch the tag check fails.
+#
+# Chrome: the "chrome-web-store" environment holds the secrets CWS_PUBLISHER_ID, CWS_EXTENSION_ID
+# and the variables GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT (keyless sign-in), or the
+# secrets CWS_CLIENT_ID, CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN. Firefox: repository secrets
+# AMO_JWT_ISSUER, AMO_JWT_SECRET. See README.md, "Releasing".
 on:
   push:
-    tags: ["v*"]
+    tags: ["v*.*.*"]
   workflow_dispatch:
     inputs:
       publish_type:
@@ -21,6 +22,7 @@ on:
         options: [DEFAULT_PUBLISH, STAGED_PUBLISH]
         default: DEFAULT_PUBLISH
 
+# Read-only by default; only github-release writes (it creates the release).
 permissions:
   contents: read
 
@@ -29,30 +31,94 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  chrome-web-store:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Check tag matches manifest version
+        run: |
+          manifest_version=$(node -p "require('./manifest.json').version")
+          if [ "v$manifest_version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match manifest.json version $manifest_version" >&2
+            exit 1
+          fi
+
+      - name: Typecheck and test
+        run: pnpm check
+
+      - name: Install Chromium for the end-to-end tests
+        run: |
+          pnpm exec playwright install --with-deps chromium
+          echo "CHROME_BIN=$(node -e 'import("playwright").then((p) => console.log(p.chromium.executablePath()))')" >> "$GITHUB_ENV"
+
+      - name: End-to-end tests
+        run: pnpm e2e
+
+      - name: Build store packages
+        run: |
+          pnpm build
+          # AMO reviewers rebuild from this archive (README.md, "Install").
+          git archive --format=zip -o dist/lurk-source.zip HEAD
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packages
+          path: |
+            dist/lurk-chrome.zip
+            dist/lurk-firefox.zip
+            dist/lurk-source.zip
+          if-no-files-found: error
+
+  chrome:
+    needs: build
     runs-on: ubuntu-latest
     environment: chrome-web-store
     permissions:
       contents: read
       id-token: write # Workload Identity Federation
+    env:
+      # Chrome Web Store API v2 (scripts/cws-publish.mjs).
+      CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+      CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+      CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+      CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+      CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+      CWS_PUBLISH_TYPE: ${{ inputs.publish_type || 'DEFAULT_PUBLISH' }}
+      KEYLESS: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && vars.GCP_SERVICE_ACCOUNT != '' }}
     steps:
+      - name: Warn about missing secrets
+        if: env.CWS_EXTENSION_ID == '' || (env.KEYLESS != 'true' && env.CWS_REFRESH_TOKEN == '')
+        run: echo "::warning::Chrome Web Store credentials not set; Chrome was NOT published"
+
+      # The publish script reads manifest.json (tag check); the zip comes from the build job.
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+        if: env.CWS_EXTENSION_ID != '' && (env.KEYLESS == 'true' || env.CWS_REFRESH_TOKEN != '')
+
+      - uses: actions/download-artifact@v8
+        if: env.CWS_EXTENSION_ID != '' && (env.KEYLESS == 'true' || env.CWS_REFRESH_TOKEN != '')
+        with:
+          name: packages
+          path: dist
+
       - uses: actions/setup-node@v7
+        if: env.CWS_EXTENSION_ID != '' && (env.KEYLESS == 'true' || env.CWS_REFRESH_TOKEN != '')
         with:
           node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm check
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: echo "CHROME_BIN=$(node -e 'import("playwright").then((p) => console.log(p.chromium.executablePath()))')" >> "$GITHUB_ENV"
-      # pnpm e2e builds dist/chrome; build:chrome writes the zip that is uploaded.
-      - run: pnpm e2e
-      - run: pnpm build:chrome
+
       # Right before the upload: the access token lasts an hour.
       - name: Sign in as the service account (no key)
         id: gcp
-        if: vars.GCP_WORKLOAD_IDENTITY_PROVIDER != ''
+        if: env.CWS_EXTENSION_ID != '' && env.KEYLESS == 'true'
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
@@ -60,13 +126,63 @@ jobs:
           token_format: access_token
           access_token_scopes: https://www.googleapis.com/auth/chromewebstore
           create_credentials_file: false
-      - name: Upload and submit for review
+
+      - name: Publish to Chrome Web Store
+        if: env.CWS_EXTENSION_ID != '' && (env.KEYLESS == 'true' || env.CWS_REFRESH_TOKEN != '')
         run: node scripts/cws-publish.mjs
         env:
-          CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
-          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
           CWS_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
-          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
-          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
-          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
-          CWS_PUBLISH_TYPE: ${{ inputs.publish_type || 'DEFAULT_PUBLISH' }}
+
+  firefox:
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    env:
+      # addons.mozilla.org API key (https://addons.mozilla.org/developers/addon/api/key/)
+      WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
+      WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+    steps:
+      - name: Warn about missing secrets
+        if: env.WEB_EXT_API_KEY == '' || env.WEB_EXT_API_SECRET == ''
+        run: echo "::warning::AMO secrets not set; Firefox was NOT published"
+
+      - uses: actions/download-artifact@v8
+        if: env.WEB_EXT_API_KEY != '' && env.WEB_EXT_API_SECRET != ''
+        with:
+          name: packages
+
+      - uses: actions/setup-node@v7
+        if: env.WEB_EXT_API_KEY != '' && env.WEB_EXT_API_SECRET != ''
+        with:
+          node-version: 22
+
+      - name: Publish to Firefox Add-ons
+        if: env.WEB_EXT_API_KEY != '' && env.WEB_EXT_API_SECRET != ''
+        run: |
+          unzip -q lurk-firefox.zip -d firefox
+          npx --yes web-ext@10.5.0 sign \
+            --source-dir firefox \
+            --channel listed \
+            --upload-source-code lurk-source.zip \
+            --approval-timeout 0
+
+  github-release:
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          lurk-chrome.zip lurk-firefox.zip
+          --repo "$GITHUB_REPOSITORY"
+          --title "$GITHUB_REF_NAME"
+          --generate-notes

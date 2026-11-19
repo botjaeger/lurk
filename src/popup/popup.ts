@@ -1,6 +1,9 @@
 // The toolbar popup: main switch, per-signal switches for the open site, pass-through, Stats.
 import {
   KINDS,
+  KIND_WORDS,
+  PAUSE_MS,
+  listWords,
   readLocal,
   type Kind,
   type PopupMessage,
@@ -29,6 +32,7 @@ const statusWrapEl = document.createElement("span");
 statusWrapEl.append(statusTextEl, statusCountEl);
 statusEl.append(statusWrapEl);
 const passEl = byId<HTMLButtonElement>("pass");
+passEl.textContent = `Let receipts through for ${PAUSE_MS / 1000} s`;
 const headingEl = byId("site-heading");
 const tipEl = byId("tip");
 const signalEls = [...document.querySelectorAll<HTMLInputElement>("[data-signal]")];
@@ -39,14 +43,15 @@ const DEFAULT_TIP = "Want them to see it? Let receipts through, then reopen the 
 byId("version").textContent = `v${chrome.runtime.getManifest().version}`;
 byId("works-on").textContent = `Works on ${SITES.map((site) => site.name).join(" · ")}`;
 
-const listWords = (words: string[]) =>
-  words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`;
-
 // ---- The open site ----------------------------------------------------------------------------
 // none: no website, or Chrome would not share the address (every box usable); site: an app Lurk
 // knows; other: a website Lurk does nothing on.
 type Page = { kind: "none" } | { kind: "site"; site: Site } | { kind: "other"; host: string };
 let page: Page = { kind: "none" };
+// Nothing is drawn until the open site is known (popup.html starts with html[data-loading], which
+// hides the page): drawn before, the first frame says "Lurk does nothing on this page", with the
+// switches still in their unticked HTML state, then changes.
+let siteKnown = false;
 
 // `url` is the tab's address, or undefined when it could not be found out. Chrome shares the address
 // of every site Lurk supports (on the icon click, or through Lurk's page script), so an unknown
@@ -61,6 +66,7 @@ function renderSite(url: string | undefined) {
   }
   const site = host ? siteFor(host) : null;
   page = site ? { kind: "site", site } : host ? { kind: "other", host } : { kind: "none" };
+  siteKnown = true;
   return refresh();
 }
 // The e2e tests call renderSite to show the popup as it looks on a given site.
@@ -95,12 +101,6 @@ for (const box of signalEls) {
   });
 }
 
-const STATUS_WORDS: Record<Kind, string> = {
-  seen: "Seen",
-  stories: "story views",
-  typing: "typing",
-};
-
 interface Status {
   enabled: boolean;
   paused: boolean;
@@ -118,7 +118,7 @@ function statusFor({ enabled, paused, signals }: Status): [string, string] {
     return ["Lurk does nothing on this site", "idle"];
   const hiding = KINDS.filter((key) => signals[key] !== false && (!covers || covers[key] === true));
   if (!hiding.length) return ["On, but nothing is switched on below", "warn"];
-  return [`Hiding ${listWords(hiding.map((key) => STATUS_WORDS[key]))}`, "ok"];
+  return [`Hiding ${listWords(hiding.map((key) => KIND_WORDS[key]))}`, "ok"];
 }
 
 // Returns the pause end so the caller knows whether to keep ticking.
@@ -252,10 +252,26 @@ passEl.addEventListener("click", () => {
 // Re-render only when stored state changes, plus once a second while a pause counts down.
 // (Polling storage on a timer could read the old value mid-click and flip the switch back.)
 let ticker = 0;
+// A failed render is logged and the next change or tick draws again; it never stops the countdown
+// with an unhandled rejection.
+const redraw = () => {
+  refresh().catch((error: unknown) => {
+    console.error("Lurk: the popup could not draw", error);
+    clearTimeout(ticker);
+    ticker = setTimeout(redraw, 1000);
+  });
+};
 async function refresh() {
-  const pauseUntil = await render();
+  if (!siteKnown) return;
+  let pauseUntil: number;
+  try {
+    pauseUntil = await render();
+  } finally {
+    // Shown even if a render failed, so the popup is never left blank.
+    delete document.documentElement.dataset.loading;
+  }
   clearTimeout(ticker);
-  if (pauseUntil) ticker = setTimeout(refresh, 1000);
+  if (pauseUntil) ticker = setTimeout(redraw, 1000);
 }
 
 // activeTab shares the URL of the tab the popup was clicked open on; nothing else is read. When
@@ -275,6 +291,6 @@ async function detectSite() {
   return renderSite(undefined);
 }
 
-chrome.storage.onChanged.addListener(() => void refresh());
-void refresh();
+chrome.storage.onChanged.addListener(redraw);
+// detectSite draws the popup once it knows the site (renderSite), on every path.
 detectSite().catch(() => renderSite(undefined));

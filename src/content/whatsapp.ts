@@ -38,7 +38,7 @@ function patch() {
   const subtle = crypto.subtle;
   const nativeEncrypt = subtle.encrypt;
   subtle.encrypt = function encrypt(this: SubtleCrypto, ...args: Parameters<typeof nativeEncrypt>) {
-    const [algorithm, key, data] = args;
+    const [algorithm, , data] = args;
     let edited: ReturnType<typeof editStanza> = null;
     try {
       const name = typeof algorithm === "string" ? algorithm : algorithm?.name;
@@ -47,7 +47,8 @@ function patch() {
     } catch {
       edited = null; // not a node (handshake, other data): leave it alone
     }
-    return nativeEncrypt.call(this, algorithm, key, edited ?? data);
+    if (edited) args[2] = edited;
+    return nativeEncrypt.apply(this, args);
   };
 
   // ---- Keep the socket on the page (WAWebCommsGating) -------------------------------------------
@@ -73,14 +74,18 @@ function patch() {
   try {
     Object.defineProperty(window, "__onAfterModuleFactory", {
       configurable: true,
-      get: () => (module: { exports?: unknown } | undefined) => {
-        try {
-          if (module) gate(module.exports);
-        } catch {
-          // ignore
-        }
-        if (typeof chained === "function") return (chained as (m: unknown) => unknown)(module);
-      },
+      // The page's own hook, if it sets one, gets every argument and `this` exactly as given.
+      get: () =>
+        function onAfterModuleFactory(this: unknown, ...args: unknown[]): unknown {
+          try {
+            const module = args[0] as { exports?: unknown } | undefined;
+            if (module) gate(module.exports);
+          } catch {
+            // ignore
+          }
+          if (typeof chained === "function")
+            return (chained as (...a: unknown[]) => unknown).apply(this, args);
+        },
       set: (fn: unknown) => {
         chained = fn;
       },

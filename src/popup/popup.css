@@ -74,6 +74,12 @@ main {
   display: none !important;
 }
 
+/* Until popup.ts has drawn the state for the open site (it keeps the layout, so the popup's size is
+   already right). */
+:root[data-loading] body {
+  visibility: hidden;
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -253,6 +259,9 @@ main {
 .switch-hero {
   width: 58px;
   height: 32px;
+  /* An input does not inherit color: without this its focus ring (currentColor) is the browser's
+     field text, white in dark mode, 1.9:1 on the green card. */
+  color: inherit;
 }
 
 .switch-hero::after {

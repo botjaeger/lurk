@@ -247,6 +247,51 @@ test("HTTP: Instagram DM seen", () => {
   ).toBe("seen");
 });
 
+test("HTTP: loading an Instagram thread is not a Seen (only the POST that marks it)", () => {
+  const thread = "https://www.instagram.com/api/v1/direct_v2/threads/123/";
+  expect(
+    classify(`${thread}?visual_message_return_type=unseen&cursor=abc`, "", "", "GET"),
+  ).toBeNull();
+  expect(classify(`${thread}items/2/seen/`, "", "", "GET")).toBeNull();
+  expect(classify(`${thread}?seen=1`, "", "", "POST")).toBeNull();
+  expect(classify(`${thread}items/2/seen/?x=1`, "", "", "POST")).toBe("seen");
+  expect(classify(`${thread}mark_read/`, "", "", "POST")).toBe("seen");
+});
+
+test("HTTP: a message or comment quoting a story-view id is sent, not faked", () => {
+  for (const id of ["xdt_mark_story_reel_seen", "forceSeenStoryId"]) {
+    const dm = form({
+      fb_api_req_friendly_name: "IGDirectTextSendMutation",
+      variables: JSON.stringify({ text: `look: "${id}":{} ${id}=1` }),
+    });
+    expect(classify("https://www.instagram.com/api/graphql", dm, "", "POST"), id).toBeNull();
+    const json = JSON.stringify({ query: "send", variables: { text: `"${id}": ${id}` } });
+    expect(classify("https://www.instagram.com/graphql/query", json, "", "POST"), id).toBeNull();
+  }
+  // Read-only queries about who has seen a story or a thread load, they do not mark.
+  for (const name of ["StoriesSeenByViewersListQuery", "PolarisThreadSeenStateQuery"])
+    expect(
+      classify(
+        "https://www.facebook.com/api/graphql/",
+        form({ fb_api_req_friendly_name: name }),
+        "",
+        "POST",
+      ),
+      name,
+    ).toBeNull();
+  // The id as a key of the request itself still marks a story view.
+  const keyed = form({ doc_id: "3", variables: JSON.stringify({ forceSeenStoryId: "1" }) });
+  expect(classify("https://www.instagram.com/graphql/query", keyed, "", "POST")).toBe("stories");
+  expect(
+    classify(
+      "https://www.instagram.com/graphql/query",
+      form({ forceseenstoryid: "1" }),
+      "",
+      "POST",
+    ),
+  ).toBe("stories");
+});
+
 test("HTTP: Teams read mark only on PUT, typing only as a Control/Typing message", () => {
   expect(classify(HORIZON, '{"consumptionhorizon":"1;2;3"}', "", "PUT")).toBe("seen");
   expect(classify(HORIZON, "", "", "GET")).toBeNull();

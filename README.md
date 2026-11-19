@@ -32,7 +32,10 @@ against a live signed-in session.
 
 ## Install
 
-Lurk is not in the browser stores yet. Build it and load it yourself:
+**Chrome, Edge, Brave:** install it from the
+[Chrome Web Store](https://chromewebstore.google.com/detail/lurk/niknnfeppnikjmdeobipmimojaikecfm).
+
+Firefox and Safari are not in their stores yet. Build it and load it yourself:
 
 ```sh
 git clone https://github.com/botjaeger/lurk.git
@@ -41,7 +44,7 @@ pnpm install
 pnpm build        # writes dist/chrome, dist/firefox and dist/safari
 ```
 
-- **Chrome, Edge, Brave:** open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**
+- **Chrome, Edge, Brave (development build):** open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**
   and choose `dist/chrome`.
 - **Firefox 142 or later:** open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on**
   and choose `dist/firefox/manifest.json`. Firefox removes it when it quits.
@@ -78,6 +81,8 @@ the build bundles each script with esbuild, unminified. The extension has no run
 - **WhatsApp:** your phone and other linked devices still show the chat as read to you. The sender is not
   told.
 - **Teams:** typing sent from a Teams background worker, if the app does that, is not covered.
+- **Google Chat:** a typing signal that Chat batches into one request with other calls is let through, so
+  those other calls are not lost.
 - **TikTok and Slack are not supported.** TikTok's web chat sends no "Seen" or typing signal at all (checked
   live with two accounts), and Slack has no read receipts.
 - **Safari:** the Safari build compiles but has not yet been run in Safari, and Safari only lets Lurk act on
@@ -143,13 +148,24 @@ load an unsigned add-on. The pre-commit hook runs `pnpm check` (and the website 
 CI (`.github/workflows/ci.yml`) runs everything above on every push and pull request.
 [AGENTS.md](AGENTS.md) describes the code layout and the rules for changing it.
 
-## Releasing (Chrome Web Store)
+## Releasing
 
-Pushing a version tag publishes the Chrome build through `.github/workflows/release.yml`: it runs
-`pnpm check` and the Chromium suites, builds `dist/lurk-chrome.zip`, uploads it with the Chrome Web Store
-API (v2) and submits it for review. It goes live when review passes.
+Same process as [Brainrot](https://github.com/botjaeger/brainrot):
 
-One-time setup:
+1. `pnpm release 0.1.2` (`scripts/release.mjs`, `--dry-run` to preview) bumps every version field
+   (`manifest.json`, `package.json`, `site/package.json`, the Safari project's two `MARKETING_VERSION`),
+   runs `pnpm check`, `pnpm e2e` and `pnpm e2e:firefox` (`CHROME_BIN`, `FIREFOX_BIN` set), commits,
+   tags `v0.1.2` and pushes. It refuses a version that is not higher, a dirty tree or a branch behind
+   its upstream. The store refuses an upload that is not higher than the published version.
+2. The tag runs `.github/workflows/release.yml`: one build job (tag check, `pnpm check`, the Chromium
+   suites, `pnpm build`, a source zip), then the Chrome Web Store, Firefox Add-ons and the GitHub release
+   as separate jobs. One store's rejection never blocks the other; a failed job can be re-run alone, and a
+   store without credentials is skipped with a warning. Chrome goes live when review passes; to hold it,
+   run the workflow by hand on the tag with `STAGED_PUBLISH` (Chrome only).
+
+Pushing to `main` deploys the website only; it never publishes the extension.
+
+One-time setup (Chrome):
 
 1. Upload the first version by hand in the [Developer Dashboard](https://chrome.google.com/webstore/devconsole),
    fill in the Store listing and Privacy tabs (policy URL: the website's `privacy.html`) and publish it with
@@ -171,13 +187,16 @@ One-time setup:
    approve each release), with secrets `CWS_PUBLISHER_ID` (Dashboard → Settings) and `CWS_EXTENSION_ID`.
    For the service account add the variables `GCP_WORKLOAD_IDENTITY_PROVIDER`
    (`projects/551319123678/locations/global/workloadIdentityPools/github/providers/botjaeger`) and
-   `GCP_SERVICE_ACCOUNT` (`cws-release@cws-publisher-094189.iam.gserviceaccount.com`); for OAuth the secrets `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`,
-   `CWS_REFRESH_TOKEN`.
+   `GCP_SERVICE_ACCOUNT` (`cws-release@cws-publisher-094189.iam.gserviceaccount.com`); for OAuth the
+   secrets `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN`.
 
-Each release: raise `version` in `manifest.json` (the store refuses an upload that is not higher), commit, then
-`git tag v<version> && git push origin v<version>`. The tag must match the manifest. To hold a release after
-review instead, run the workflow by hand on the tag with `STAGED_PUBLISH`. Check settings without sending
-anything: `GITHUB_REF_NAME=v<version> CWS_…=… node scripts/cws-publish.mjs --dry-run`.
+Check the Chrome settings without sending anything:
+`GITHUB_REF_NAME=v<version> CWS_…=… node scripts/cws-publish.mjs --dry-run`.
+
+Firefox: the first version is submitted by hand on addons.mozilla.org. Then add the repository secrets
+`AMO_JWT_ISSUER` and `AMO_JWT_SECRET` (an [AMO API key](https://addons.mozilla.org/developers/addon/api/key/));
+the job signs `dist/lurk-firefox.zip` for the listed channel with `web-ext sign` and uploads the source
+zip, from which reviewers rebuild it (`pnpm install && pnpm build`, see Install).
 
 ## Website
 

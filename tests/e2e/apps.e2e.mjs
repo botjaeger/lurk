@@ -344,19 +344,34 @@ const horizonBody = JSON.stringify({ consumptionhorizon: "1763290000123;17632900
 
   // Requests from a worker skip the page patch; the declarativeNetRequest rule still stops receipts.
   const page = await open(`https://${host}`);
-  const workerResult = await page.evaluate(async (url) => {
-    const src = `onmessage = async (e) => { try { await fetch(e.data, { method: "PUT", body: "{}" }); postMessage("sent"); } catch (err) { postMessage("blocked: " + err.message); } };`;
-    const worker = new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
-    return new Promise((resolve) => {
-      worker.onmessage = (e) => resolve(e.data);
-      worker.postMessage(url);
-    });
-  }, HORIZON(host));
+  const fromWorker = (url) =>
+    page.evaluate(async (u) => {
+      const src = `onmessage = async (e) => { try { await fetch(e.data, { method: "PUT", body: "{}" }); postMessage("sent"); } catch (err) { postMessage("blocked: " + err.message); } };`;
+      const worker = new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
+      return new Promise((resolve) => {
+        worker.onmessage = (e) => resolve(e.data);
+        worker.postMessage(u);
+      });
+    }, url);
+  let workerResult = await fromWorker(HORIZON(host));
   check(
     "Teams read receipt from a worker blocked by the network rule",
     workerResult.startsWith("blocked"),
     workerResult,
   );
+  // The rule matches name=consumptionhorizon anywhere in the query, as the page's check does, and
+  // only that exact name.
+  const PROPS = HORIZON(host).replace(/\?.*$/, "");
+  workerResult = await fromWorker(`${PROPS}?foo=1&name=consumptionhorizon`);
+  check(
+    "Teams worker: name=consumptionhorizon after another parameter is blocked",
+    workerResult.startsWith("blocked"),
+    workerResult,
+  );
+  for (const query of ["name=consumptionhorizonx", "name=favorite"]) {
+    workerResult = await fromWorker(`${PROPS}?${query}`);
+    check(`Teams worker: ${query} reaches the server`, workerResult === "sent", workerResult);
+  }
 
   await setLocal({ signals: { seen: false, stories: true, typing: true } });
   await settle();
@@ -370,6 +385,55 @@ const horizonBody = JSON.stringify({ consumptionhorizon: "1763290000123;17632900
   check("Teams typing off: typing sent", r.reached, r);
   await setLocal({ signals: { seen: true, stories: true, typing: true } });
   await settle();
+}
+
+// Natives keep their own argument checks (C10): ws.send() with no argument throws TypeError, as
+// the browser's does, instead of sending "undefined". On Teams, where page.js patches WebSocket; this
+// suite does not route sockets (Playwright's socket routing swaps in its own WebSocket). A refused local
+// socket: no network.
+{
+  const page = await open("https://teams.microsoft.com");
+  const thrown = await page.evaluate(() => {
+    const ws = new WebSocket("wss://127.0.0.1:9/");
+    try {
+      ws.send();
+      return "none";
+    } catch (error) {
+      return error.name;
+    } finally {
+      ws.close();
+    }
+  });
+  check(
+    "ws.send() with no argument throws TypeError like the native",
+    thrown === "TypeError",
+    thrown,
+  );
+}
+
+// Natives keep their own argument checks (C10): encrypt() with two arguments fails as the browser's
+// does (compared with an iframe's untouched copy), not with a made-up third one.
+{
+  const page = await open("https://web.whatsapp.com");
+  const errors = await page.evaluate(async () => {
+    const frame = document.createElement("iframe");
+    document.body.append(frame);
+    const run = async (subtle) => {
+      const key = await subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt"]);
+      try {
+        await subtle.encrypt({ name: "AES-GCM", iv: new Uint8Array(12) }, key);
+        return "resolved";
+      } catch (error) {
+        return String(error);
+      }
+    };
+    return [await run(crypto.subtle), await run(frame.contentWindow.crypto.subtle)];
+  });
+  check(
+    "WhatsApp encrypt() with 2 arguments fails like the native",
+    errors[0] === errors[1],
+    errors,
+  );
 }
 
 await ctx.close();

@@ -8,6 +8,7 @@
 // a pause that was running still ends on time (see push).
 import {
   isKind,
+  isSetting,
   readLocal,
   type CountMessage,
   type Kind,
@@ -94,8 +95,8 @@ chrome.runtime.onMessage.addListener((message, _sender, reply) => {
   if (message === "lurk:host") reply(location.hostname);
 });
 
-chrome.storage.onChanged.addListener((changes) => {
-  if (Object.keys(changes).some((key) => key !== "stats")) void push();
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && Object.keys(changes).some(isSetting)) void push();
 });
 // The page scripts announce themselves; whichever script runs first, the state still gets across.
 // (Not onPageEvent: a page script injected after the cut-off still needs the last settings.)

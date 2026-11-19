@@ -518,6 +518,60 @@ await ctx.route(/^https:\/\/(chat|mail)\.google\.com\//, (route) =>
   await setLocal({ enabled: true });
 }
 
+// A faked XHR answer: the right response type, and a reused request object reports its next, real
+// answer (not the fake one).
+{
+  const page = await site(FB);
+  const r = await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        const x = new XMLHttpRequest();
+        x.open("POST", "/api/graphql/");
+        x.responseType = "arraybuffer";
+        x.onloadend = () => {
+          const type = Object.prototype.toString.call(x.response);
+          x.onloadend = () => resolve({ type, real: x.responseText });
+          x.open("POST", "/api/graphql/");
+          x.responseType = "";
+          x.send("fb_api_req_friendly_name=CometNewsFeedPaginationQuery");
+        };
+        x.send("fb_api_req_friendly_name=storiesUpdateSeenStateMutation&doc_id=1");
+      }),
+  );
+  check(
+    "faked XHR with responseType arraybuffer answers an ArrayBuffer",
+    r.type === "[object ArrayBuffer]",
+    r,
+  );
+  check(
+    "a reused XHR reports its real answer after a faked one",
+    r.real === '{"data":{"real":true}}',
+    r,
+  );
+}
+
+// Stats: two different story views whose form bodies open with the same 200+ characters of
+// session fields count twice.
+{
+  const page = await site(FB);
+  await setLocal({ stats: { since: Date.now(), sites: {} } });
+  await settle();
+  await page.evaluate(async () => {
+    const head = `av=1000&__user=1000&__a=1&__req=1a&__dyn=${"7xeUmwlE".repeat(40)}&fb_dtsg=x`;
+    for (const story of ["111", "222"]) {
+      const variables = encodeURIComponent(JSON.stringify({ input: { story_id: story } }));
+      await fetch("/api/graphql/", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: `${head}&fb_api_req_friendly_name=storiesUpdateSeenStateMutation&variables=${variables}`,
+      });
+    }
+  });
+  await wait(600);
+  const stats = (await sw.evaluate(() => chrome.storage.local.get("stats"))).stats;
+  check("two different story views count as two", stats?.sites?.meta?.stories === 2, stats);
+}
+
 // Popup checkboxes write storage.
 {
   const id = new URL(sw.url()).host;
@@ -792,6 +846,53 @@ await ctx.route(/^https:\/\/(chat|mail)\.google\.com\//, (route) =>
     "real popup on an Instagram tab shows Instagram",
     popupText === "Hide on Instagram | Hiding Seen, story views and typing",
     popupText,
+  );
+
+  // Every painted frame from the moment it opens shows that state, never "Lurk does nothing on this
+  // page" or unticked switches first (C11). Reloaded with a recorder of each visible frame.
+  const targets = await (await fetch(`http://127.0.0.1:${DEBUG_PORT}/json`)).json();
+  const target = targets.find((t) => t.url.endsWith("/popup.html"));
+  const ws = new WebSocket(target.webSocketDebuggerUrl);
+  await new Promise((r) => {
+    ws.onopen = r;
+  });
+  let id = 0;
+  const cdp = (method, params = {}) =>
+    new Promise((resolve) => {
+      const mine = ++id;
+      ws.addEventListener("message", function on(m) {
+        const msg = JSON.parse(m.data);
+        if (msg.id !== mine) return;
+        ws.removeEventListener("message", on);
+        resolve(msg.result);
+      });
+      ws.send(JSON.stringify({ id: mine, method, params }));
+    });
+  await cdp("Page.enable");
+  await cdp("Page.addScriptToEvaluateOnNewDocument", {
+    source: `window.__frames = [];
+      const frame = () => {
+        const b = document.body;
+        if (b && getComputedStyle(b).visibility !== "hidden") {
+          const v = document.getElementById("site-heading").textContent + " | " +
+            document.getElementById("status").textContent + " | " + document.getElementById("enabled").checked;
+          if (window.__frames.at(-1) !== v) window.__frames.push(v);
+        }
+        if (window.__frames.length < 20) requestAnimationFrame(frame);
+      };
+      requestAnimationFrame(frame);`,
+  });
+  await cdp("Page.reload");
+  await wait(1000);
+  const painted = (
+    await cdp("Runtime.evaluate", { expression: "window.__frames", returnByValue: true })
+  ).result.value;
+  ws.close();
+  check(
+    "real popup: the first painted frame is already the Instagram state",
+    painted.length === 1 &&
+      painted[0] === "Hide on Instagram | Hiding Seen, story views and typing | true",
+    painted,
   );
 }
 

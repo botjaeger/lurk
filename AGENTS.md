@@ -30,6 +30,7 @@ pnpm icons          # icons/*.png (and the store icon) from scripts/make-icons.m
 pnpm store-assets   # Chrome Web Store screenshots, promo tile, icon -> dist/store (needs CHROME_BIN)
 pnpm site:dev       # website dev server (pnpm install covers it)
 pnpm site:build     # website typecheck + build -> site/dist
+pnpm release 0.1.2  # bump, gate, commit, tag, push; the tag makes CI publish (--dry-run to preview)
 node tests/e2e/stats.e2e.mjs   # one e2e suite
 ```
 
@@ -45,9 +46,16 @@ or file list changed. Each e2e suite prints `ALL PASS n/n`; check the exit code,
 The pre-commit hook (`.githooks/pre-commit`) runs `pnpm check`, and `pnpm site:build` when staged files
 touch `site/`. CI (`.github/workflows/ci.yml`) runs check + build + site build, the Chromium suites and the
 Firefox suite (Nightly) on every push and pull request; `.github/workflows/pages.yml` deploys the website from
-`main`. Safari is built and tested only locally (macOS + Xcode). `.github/workflows/release.yml` publishes to the
-Chrome Web Store on a `v<version>` tag: check + Chromium e2e, then `scripts/cws-publish.mjs` (API v2: upload
-`dist/lurk-chrome.zip`, poll, submit for review; `--dry-run` checks the tag, zip and secrets only).
+`main`. Safari is built and tested only locally (macOS + Xcode).
+
+Releases follow the same process as botjaeger/brainrot; keep the two in step. `pnpm release <version>`
+(`scripts/release.mjs`) bumps every version field, runs check + both e2e sets, commits, tags `v<version>`
+and pushes. The tag runs `.github/workflows/release.yml`: a `build` job (tag check, check, Chromium e2e,
+`pnpm build`, `dist/lurk-source.zip`), then `chrome` (`scripts/cws-publish.mjs`, API v2, keyless sign-in
+as the shared service account, `chrome-web-store` environment), `firefox` (`web-ext sign`, AMO secrets)
+and `github-release` in parallel; a store without credentials is skipped with a warning. Every workflow
+is read-only at the top level and a job asks for more (`tests/workflows.test.ts`). Setup: `README.md`,
+"Releasing".
 
 ## Layout
 
@@ -67,6 +75,7 @@ Chrome Web Store on a `v<version>` tag: check + Chromium e2e, then `scripts/cws-
 | `src/content/bridge.ts` | Isolated world everywhere: sends settings to the page scripts, de-duplicates and forwards counts, answers the popup's `lurk:host`. |
 | `src/popup/` | Toolbar popup (`popup.html`, `popup.css`, `popup.ts`). |
 | `scripts/build.mjs` | Bundles `SCRIPTS` (esbuild, IIFE, unminified) and copies `ASSETS` into `dist/<browser>`, merges the overlay, zips Chrome and Firefox. |
+| `scripts/release.mjs`, `scripts/cws-publish.mjs` | `pnpm release` (bump, gate, commit, tag, push) and the Chrome Web Store upload the release workflow runs. Both unit-tested (`tests/release.test.ts`, `tests/cws.test.ts`). |
 | `pnpm-workspace.yaml` | pnpm workspace: the root (extension tooling) and `site/`, one `pnpm-lock.yaml`; esbuild may run its install script. |
 | `tsconfig.json` | Strict TypeScript for `src/` (`@types/chrome`); `site/` has its own. |
 | `safari/Lurk/` | Xcode project (Xcode 27 `project.xcproj` format) wrapping `dist/safari`. |
@@ -74,7 +83,7 @@ Chrome Web Store on a `v<version>` tag: check + Chromium e2e, then `scripts/cws-
 | `tests/` | `*.test.ts` (Vitest, run by `check`; `tests/tsconfig.json`) and `e2e/*.e2e.mjs`. |
 | `eslint.config.js` | ESLint flat config (with typescript-eslint): type-aware rules for all TypeScript, browser/webextension globals for `src/`, no `import()` there, Node for scripts and tests. |
 | `.prettierrc.json`, `.prettierignore` | Prettier, width 100. Markdown is hand-wrapped and not formatted. |
-| `.githooks/pre-commit`, `.github/workflows/` | Pre-commit gate; CI (`ci.yml`) and website deploy (`pages.yml`). |
+| `.githooks/pre-commit`, `.github/workflows/` | Pre-commit gate; CI (`ci.yml`), website deploy (`pages.yml`) and store release (`release.yml`). |
 | `docs/workstreams/` | Audit trackers (`AUD-NNN` items) for open work, and `project-defect-classes.md`: each defect class found, its rule and its guard in `tests/classes.test.ts`. |
 
 ## How the pieces talk
@@ -118,7 +127,10 @@ A new stored value must also be listed in `site/privacy.html` ("What the extensi
   success, so the app does not retry or show an error. A request is only dropped outright when the app
   expects no answer.
 - Every entry in `SCRIPTS` ships as one classic script: static imports are bundled in, `import()` is
-  forbidden (ESLint), and nothing leaks into the page's globals (the IIFE wraps it). Code shared between
+  forbidden (ESLint), and nothing leaks into the page's globals (the IIFE wraps it) except the
+  deliberate ones: the non-enumerable double-injection flags `__lurkPatched` (`page.ts`) and
+  `__lurkWhatsApp` (`whatsapp.ts`), and WhatsApp's own `__onAfterModuleFactory` hook, which
+  `whatsapp.ts` chains. A page can see them; add no others. Code shared between
   entries is copied into each; keep shared modules free of side effects.
 - Patching a native (`fetch`, `XMLHttpRequest.prototype.open`, …) passes the caller's arguments on exactly
   (`...args`): `open(method, url, undefined)` would make the request synchronous.
@@ -127,10 +139,11 @@ A new stored value must also be listed in `site/privacy.html` ("What the extensi
 - `requestMethods` in a DNR rule needs Safari 26, which is why `manifest.safari.json` sets that minimum.
 - Firefox runs `background.js` as a background script (an event page with a DOM); Chrome and Safari run it as
   a service worker. Keep it to APIs both have.
-- Bump the version only for a release, never as part of other work. Every Chrome Web Store upload needs a
-  higher `version` than the published one (0.1.0 is live). Bump together: `manifest.json`, `package.json`,
-  `site/package.json` and the Safari project's two `MARKETING_VERSION` entries. The website reads the
-  version from `manifest.json`.
+- Bump the version only for a release, never as part of other work, and only with `pnpm release`: it
+  changes every field together (`manifest.json`, `package.json`, `site/package.json`, the Safari
+  project's two `MARKETING_VERSION`; `tests/release.test.ts` fails when one moves). Every Chrome Web
+  Store upload needs a higher `version` than the published one. The website reads the version from
+  `manifest.json`.
 
 ### Adding or removing a supported app
 
@@ -160,7 +173,8 @@ Every one of these changes together:
 
 Static multi-page Vite site: `index.html`, `privacy.html`, `terms.html`, `src/main.ts`, `src/style.css`,
 `src/release.ts` (store listing states; the version comes from `../manifest.json`). `base: "./"` keeps every
-URL relative, so it works under `https://<user>.github.io/<repo>/`. Fonts are self-hosted; the site makes no
+URL relative, so it works under `https://<user>.github.io/<repo>/`; the one exception is `public/404.html`
+(GitHub Pages serves it at any depth, so it is self-contained with absolute links). Fonts are self-hosted; the site makes no
 third-party requests and has no analytics. `site/public/mark.svg` and the icon PNGs are copies of `icons/`;
 update them together. The privacy and terms pages are the store listings' policy URLs: keep their facts
 (permissions, hosts, stored values) true when the code changes.

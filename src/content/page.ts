@@ -17,7 +17,7 @@
 // Settings arrive from content/bridge.ts as a "lurk:state" event; until then everything is blocked.
 // This file only hooks the page's natives; what to block and how to rewrite it is in frames.ts.
 import { count, followState } from "./events";
-import { classify, editFrame, idleChatStates } from "./frames";
+import { classify, editFrame, idleChatStates, requestKey } from "./frames";
 
 const flags = window as unknown as { __lurkPatched?: boolean };
 if (!flags.__lurkPatched) {
@@ -32,15 +32,15 @@ function patch() {
   const nativeSend = WebSocket.prototype.send;
   WebSocket.prototype.send = function send(
     this: WebSocket,
-    data: Parameters<typeof nativeSend>[0],
+    ...args: Parameters<typeof nativeSend>
   ) {
-    let edited: ReturnType<typeof editFrame>;
     try {
-      edited = editFrame(data, on, count);
+      const edited = args.length ? editFrame(args[0], on, count) : null;
+      if (edited) args[0] = edited;
     } catch {
-      edited = null;
+      // Not a frame Lurk reads: send it unchanged.
     }
-    nativeSend.call(this, edited ?? data);
+    nativeSend.apply(this, args);
   };
 
   // ---- Worker messages (end-to-end encrypted Messenger chats) ---------------------------------
@@ -49,14 +49,14 @@ function patch() {
   }
   for (const target of [MessagePort.prototype, Worker.prototype] as unknown as Poster[]) {
     const nativePost = target.postMessage;
-    target.postMessage = function postMessage(this: unknown, message: unknown, ...rest: unknown[]) {
-      let edited: unknown[] | null;
+    target.postMessage = function postMessage(this: unknown, ...args: unknown[]) {
       try {
-        edited = idleChatStates(message, on, count);
+        const edited = args.length ? idleChatStates(args[0], on, count) : null;
+        if (edited) args[0] = edited;
       } catch {
-        edited = null;
+        // Send it unchanged.
       }
-      nativePost.call(this, edited ?? message, ...rest);
+      nativePost.apply(this, args as Parameters<Poster["postMessage"]>);
     };
   }
 
@@ -108,7 +108,7 @@ function patch() {
       );
       const kind = classify(url, bodyText(init?.body), header, method);
       if (kind && on[kind]) {
-        count(kind, url + bodyText(init?.body).slice(0, 200));
+        count(kind, requestKey(url, bodyText(init?.body), header));
         return Promise.resolve(fakeResponse());
       }
       if (!kind && readsRequestBody(input, init)) {
@@ -119,7 +119,7 @@ function patch() {
             (body) => {
               const later = classify(url, body, header, method);
               if (!later || !on[later]) return nativeFetch.apply(window, args);
-              count(later, url + body.slice(0, 200));
+              count(later, requestKey(url, body, header));
               return fakeResponse();
             },
             () => nativeFetch.apply(window, args),
@@ -140,21 +140,36 @@ function patch() {
   const nativeOpen = XMLHttpRequest.prototype.open;
   const nativeSetHeader = XMLHttpRequest.prototype.setRequestHeader;
   const nativeXhrSend = XMLHttpRequest.prototype.send;
+  // The fields a faked answer sets on the request object itself (see send), removed again when the
+  // app reuses the object, so its next, real request reports its own state.
+  const FAKED = ["readyState", "status", "statusText", "responseText", "response"] as const;
+  const fakeFor = (type: XMLHttpRequestResponseType, text: string): unknown =>
+    type === "json"
+      ? JSON.parse(text)
+      : type === "arraybuffer"
+        ? new TextEncoder().encode(text).buffer
+        : type === "blob"
+          ? new Blob([text], { type: "application/json" })
+          : type === "document"
+            ? null
+            : text;
 
   // Arguments are passed on exactly as given: open(method, url, undefined) would make the request
   // synchronous.
   XMLHttpRequest.prototype.open = function open(this: XMLHttpRequest, ...args: unknown[]) {
     requests.set(this, { url: String(args[1]), header: "", method: String(args[0]) });
+    for (const key of FAKED)
+      if (Object.hasOwn(this, key)) delete (this as unknown as Record<string, unknown>)[key];
     nativeOpen.apply(this, args as Parameters<typeof nativeOpen>);
   };
   XMLHttpRequest.prototype.setRequestHeader = function setRequestHeader(
     this: XMLHttpRequest,
-    name: string,
-    value: string,
+    ...args: Parameters<typeof nativeSetHeader>
   ) {
+    const [name, value] = args;
     const info = requests.get(this);
     if (info && String(name).toLowerCase() === "x-fb-friendly-name") info.header = String(value);
-    nativeSetHeader.call(this, name, value);
+    nativeSetHeader.apply(this, args);
   };
   XMLHttpRequest.prototype.send = function send(this: XMLHttpRequest, ...args: unknown[]) {
     try {
@@ -162,7 +177,7 @@ function patch() {
       const body = bodyText(args[0]);
       const kind = info && classify(info.url, body, info.header, info.method);
       if (info && kind && on[kind]) {
-        count(kind, info.url + body.slice(0, 200));
+        count(kind, requestKey(info.url, body, info.header));
         // Answer with a fake empty success instead of sending.
         const fake = fakeBody();
         for (const [key, value] of Object.entries({
@@ -170,7 +185,7 @@ function patch() {
           status: 200,
           statusText: "OK",
           responseText: fake,
-          response: this.responseType === "json" ? (JSON.parse(fake) as unknown) : fake,
+          response: fakeFor(this.responseType, fake),
         })) {
           Object.defineProperty(this, key, { configurable: true, value });
         }
