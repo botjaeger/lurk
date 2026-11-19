@@ -1,7 +1,7 @@
 {
   "name": "lurk-site",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "MIT",
   "description": "Website for Lurk, the browser extension that hides Seen, story views and typing.",
   "type": "module",

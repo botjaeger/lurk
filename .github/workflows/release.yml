@@ -1,0 +1,72 @@
+# Publishes the Chrome build to the Chrome Web Store when a version tag is pushed:
+#   bump "version" in manifest.json, commit, then `git tag v<version> && git push origin v<version>`.
+# The tag must match manifest.json. The full gate (check + Chromium e2e) runs first; the upload is
+# then submitted for review and goes live when it passes (or is staged, with publish_type).
+# Settings live in the "chrome-web-store" environment (Settings > Environments):
+#   secrets CWS_PUBLISHER_ID, CWS_EXTENSION_ID;
+#   variables GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT (keyless sign-in as the service
+#   account added in the Developer Dashboard), or instead secrets CWS_CLIENT_ID, CWS_CLIENT_SECRET,
+#   CWS_REFRESH_TOKEN. See README.md, "Releasing". A manual run (to stage instead) must pick the tag
+#   under "Use workflow from"; on a branch the tag check fails.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      publish_type:
+        description: DEFAULT_PUBLISH goes live after review; STAGED_PUBLISH waits for you
+        type: choice
+        options: [DEFAULT_PUBLISH, STAGED_PUBLISH]
+        default: DEFAULT_PUBLISH
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  chrome-web-store:
+    runs-on: ubuntu-latest
+    environment: chrome-web-store
+    permissions:
+      contents: read
+      id-token: write # Workload Identity Federation
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: echo "CHROME_BIN=$(node -e 'import("playwright").then((p) => console.log(p.chromium.executablePath()))')" >> "$GITHUB_ENV"
+      # pnpm e2e builds dist/chrome; build:chrome writes the zip that is uploaded.
+      - run: pnpm e2e
+      - run: pnpm build:chrome
+      # Right before the upload: the access token lasts an hour.
+      - name: Sign in as the service account (no key)
+        id: gcp
+        if: vars.GCP_WORKLOAD_IDENTITY_PROVIDER != ''
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+          create_credentials_file: false
+      - name: Upload and submit for review
+        run: node scripts/cws-publish.mjs
+        env:
+          CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          CWS_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          CWS_PUBLISH_TYPE: ${{ inputs.publish_type || 'DEFAULT_PUBLISH' }}

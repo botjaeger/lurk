@@ -45,7 +45,9 @@ or file list changed. Each e2e suite prints `ALL PASS n/n`; check the exit code,
 The pre-commit hook (`.githooks/pre-commit`) runs `pnpm check`, and `pnpm site:build` when staged files
 touch `site/`. CI (`.github/workflows/ci.yml`) runs check + build + site build, the Chromium suites and the
 Firefox suite (Nightly) on every push and pull request; `.github/workflows/pages.yml` deploys the website from
-`main`. Safari is built and tested only locally (macOS + Xcode).
+`main`. Safari is built and tested only locally (macOS + Xcode). `.github/workflows/release.yml` publishes to the
+Chrome Web Store on a `v<version>` tag: check + Chromium e2e, then `scripts/cws-publish.mjs` (API v2: upload
+`dist/lurk-chrome.zip`, poll, submit for review; `--dry-run` checks the tag, zip and secrets only).
 
 ## Layout
 
@@ -125,8 +127,10 @@ A new stored value must also be listed in `site/privacy.html` ("What the extensi
 - `requestMethods` in a DNR rule needs Safari 26, which is why `manifest.safari.json` sets that minimum.
 - Firefox runs `background.js` as a background script (an event page with a DOM); Chrome and Safari run it as
   a service worker. Keep it to APIs both have.
-- Version stays `0.1.0` until the first release. Do not bump it as part of other work. The website reads the
-  version from `manifest.json`; the Safari project has its own `MARKETING_VERSION`.
+- Bump the version only for a release, never as part of other work. Every Chrome Web Store upload needs a
+  higher `version` than the published one (0.1.0 is live). Bump together: `manifest.json`, `package.json`,
+  `site/package.json` and the Safari project's two `MARKETING_VERSION` entries. The website reads the
+  version from `manifest.json`.
 
 ### Adding or removing a supported app
 

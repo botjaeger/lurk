@@ -143,6 +143,57 @@ load an unsigned add-on. The pre-commit hook runs `pnpm check` (and the website 
 CI (`.github/workflows/ci.yml`) runs everything above on every push and pull request.
 [AGENTS.md](AGENTS.md) describes the code layout and the rules for changing it.
 
+## Releasing (Chrome Web Store)
+
+Pushing a version tag publishes the Chrome build through `.github/workflows/release.yml`: it runs
+`pnpm check` and the Chromium suites, builds `dist/lurk-chrome.zip`, uploads it with the Chrome Web Store
+API (v2) and submits it for review. It goes live when review passes.
+
+One-time setup:
+
+1. Upload the first version by hand in the [Developer Dashboard](https://chrome.google.com/webstore/devconsole),
+   fill in the Store listing and Privacy tabs (policy URL: the website's `privacy.html`) and publish it with
+   the visibility you want. The API cannot create an item or change its visibility.
+2. Credentials, either:
+   - **Service account without a key (recommended):** in a Google Cloud project, enable the Chrome Web Store
+     API and create a service account with no roles and no key. Add its email in the Developer Dashboard
+     under Publisher → Settings → Service account (one per publisher). Then let this repository's workflow
+     sign in as it through Workload Identity Federation (`PROJECT`, `SA` and `REPO` are yours):
+
+     ```sh
+     PROJECT=lurk-515212 SA=lurk-release@lurk-515212.iam.gserviceaccount.com REPO=botjaeger/lurk
+     gcloud services enable iamcredentials.googleapis.com sts.googleapis.com --project="$PROJECT"
+     gcloud iam workload-identity-pools create github --project="$PROJECT" --location=global \
+       --display-name="GitHub Actions"
+     gcloud iam workload-identity-pools providers create-oidc lurk --project="$PROJECT" --location=global \
+       --workload-identity-pool=github --display-name="Lurk releases" \
+       --issuer-uri="https://token.actions.githubusercontent.com" \
+       --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+       --attribute-condition="assertion.repository == '$REPO'"
+     POOL=$(gcloud iam workload-identity-pools describe github --project="$PROJECT" --location=global \
+       --format="value(name)")
+     gcloud iam service-accounts add-iam-policy-binding "$SA" --project="$PROJECT" \
+       --role=roles/iam.workloadIdentityUser \
+       --member="principalSet://iam.googleapis.com/$POOL/attribute.repository/$REPO"
+     gcloud iam workload-identity-pools providers describe lurk --project="$PROJECT" --location=global \
+       --workload-identity-pool=github --format="value(name)"   # the provider name for step 3
+     ```
+   - **OAuth:** an OAuth client ("Web application", redirect URI
+     `https://developers.google.com/oauthplayground`) and a refresh token for the scope
+     `https://www.googleapis.com/auth/chromewebstore`, made in OAuth Playground with the account that owns
+     the item.
+3. In GitHub, **Settings → Environments → New environment** `chrome-web-store` (add required reviewers to
+   approve each release), with secrets `CWS_PUBLISHER_ID` (Dashboard → Settings) and `CWS_EXTENSION_ID`.
+   For the service account add the variables `GCP_WORKLOAD_IDENTITY_PROVIDER` (the provider name printed
+   above, `projects/<number>/locations/global/workloadIdentityPools/github/providers/lurk`) and
+   `GCP_SERVICE_ACCOUNT` (its email); for OAuth the secrets `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`,
+   `CWS_REFRESH_TOKEN`.
+
+Each release: raise `version` in `manifest.json` (the store refuses an upload that is not higher), commit, then
+`git tag v<version> && git push origin v<version>`. The tag must match the manifest. To hold a release after
+review instead, run the workflow by hand on the tag with `STAGED_PUBLISH`. Check settings without sending
+anything: `GITHUB_REF_NAME=v<version> CWS_…=… node scripts/cws-publish.mjs --dry-run`.
+
 ## Website
 
 `site/` is the project website (home, privacy policy, terms), a small static Vite site:
