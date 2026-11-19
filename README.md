@@ -155,38 +155,23 @@ One-time setup:
    fill in the Store listing and Privacy tabs (policy URL: the website's `privacy.html`) and publish it with
    the visibility you want. The API cannot create an item or change its visibility.
 2. Credentials, either:
-   - **Service account without a key (recommended):** in a Google Cloud project, enable the Chrome Web Store
-     API and create a service account with no roles and no key. Add its email in the Developer Dashboard
-     under Publisher → Settings → Service account (one per publisher). Then let this repository's workflow
-     sign in as it through Workload Identity Federation (`PROJECT`, `SA` and `REPO` are yours):
-
-     ```sh
-     PROJECT=lurk-515212 SA=lurk-release@lurk-515212.iam.gserviceaccount.com REPO=botjaeger/lurk
-     gcloud services enable iamcredentials.googleapis.com sts.googleapis.com --project="$PROJECT"
-     gcloud iam workload-identity-pools create github --project="$PROJECT" --location=global \
-       --display-name="GitHub Actions"
-     gcloud iam workload-identity-pools providers create-oidc lurk --project="$PROJECT" --location=global \
-       --workload-identity-pool=github --display-name="Lurk releases" \
-       --issuer-uri="https://token.actions.githubusercontent.com" \
-       --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
-       --attribute-condition="assertion.repository == '$REPO'"
-     POOL=$(gcloud iam workload-identity-pools describe github --project="$PROJECT" --location=global \
-       --format="value(name)")
-     gcloud iam service-accounts add-iam-policy-binding "$SA" --project="$PROJECT" \
-       --role=roles/iam.workloadIdentityUser \
-       --member="principalSet://iam.googleapis.com/$POOL/attribute.repository/$REPO"
-     gcloud iam workload-identity-pools providers describe lurk --project="$PROJECT" --location=global \
-       --workload-identity-pool=github --format="value(name)"   # the provider name for step 3
-     ```
+   - **Shared service account without a key (in use):** `cws-release@cws-publisher-094189.iam.gserviceaccount.com`
+     in the Google Cloud project `cws-publisher-094189`, shared by the publisher's extensions. Its email is
+     the one in the Developer Dashboard under Publisher → Settings → Service account (one per publisher).
+     The workflow signs in as it through Workload Identity Federation, with no key: the project's `github`
+     pool has a provider `botjaeger` that admits only
+     `assertion.repository in ['botjaeger/lurk', 'botjaeger/brainrot']`, and each of those repositories has
+     a `roles/iam.workloadIdentityUser` binding on `cws-release`. Another repository needs both: its name
+     in the provider's condition and its own binding.
    - **OAuth:** an OAuth client ("Web application", redirect URI
      `https://developers.google.com/oauthplayground`) and a refresh token for the scope
      `https://www.googleapis.com/auth/chromewebstore`, made in OAuth Playground with the account that owns
      the item.
 3. In GitHub, **Settings → Environments → New environment** `chrome-web-store` (add required reviewers to
    approve each release), with secrets `CWS_PUBLISHER_ID` (Dashboard → Settings) and `CWS_EXTENSION_ID`.
-   For the service account add the variables `GCP_WORKLOAD_IDENTITY_PROVIDER` (the provider name printed
-   above, `projects/<number>/locations/global/workloadIdentityPools/github/providers/lurk`) and
-   `GCP_SERVICE_ACCOUNT` (its email); for OAuth the secrets `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`,
+   For the service account add the variables `GCP_WORKLOAD_IDENTITY_PROVIDER`
+   (`projects/551319123678/locations/global/workloadIdentityPools/github/providers/botjaeger`) and
+   `GCP_SERVICE_ACCOUNT` (`cws-release@cws-publisher-094189.iam.gserviceaccount.com`); for OAuth the secrets `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`,
    `CWS_REFRESH_TOKEN`.
 
 Each release: raise `version` in `manifest.json` (the store refuses an upload that is not higher), commit, then

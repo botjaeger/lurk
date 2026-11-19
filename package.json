@@ -1,6 +1,6 @@
 {
   "name": "lurk",
-  "version": "0.1.2",
+  "version": "0.1.1",
   "private": true,
   "license": "MIT",
   "description": "Browser extension (Chrome, Firefox, Safari) that hides Seen, story views and typing on Google Chat, Messenger, Facebook, Instagram, WhatsApp and Teams.",

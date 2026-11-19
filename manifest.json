@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Lurk",
-  "version": "0.1.2",
+  "version": "0.1.1",
   "description": "Read without the receipt: hides Seen, typing and story views in web chat apps.",
   "permissions": ["declarativeNetRequest", "storage", "alarms", "activeTab"],
   "background": {
