@@ -10,7 +10,16 @@
 //   content scripts. A browser start clears it (see `queue` below), so a pause never outlives a restart.
 // session.running – set once the worker has run since the browser started.
 // Chrome and Safari run this as a service worker, Firefox as a background script.
-import { isKind, readLocal, type CountMessage, type Kind } from "./shared";
+import {
+  KINDS,
+  PAUSE_MS,
+  isKind,
+  readLocal,
+  type CountMessage,
+  type Kind,
+  type PopupMessage,
+  type Stats,
+} from "./shared";
 import { siteFor } from "./sites";
 
 const RULESETS: Partial<Record<Kind, string>> = { seen: "block_receipts", typing: "block_typing" };
@@ -24,7 +33,7 @@ async function getState() {
   } = await readLocal(["enabled", "signals", "pauseUntil"]);
   const paused = enabled && pauseUntil > Date.now();
   // With every Hide box unticked, nothing is blocked: the badge says OFF rather than look active.
-  const anySignal = (["seen", "stories", "typing"] as const).some((key) => signals[key] !== false);
+  const anySignal = KINDS.some((key) => signals[key] !== false);
   return { enabled, paused, pauseUntil, blocking: enabled && !paused && anySignal, signals };
 }
 
@@ -79,10 +88,13 @@ let queue: Promise<void> = chrome.storage.session
     await chrome.storage.session.set({ running: true });
   })
   .catch((error: unknown) => console.error("Lurk: startup check failed", error));
-function sync() {
-  queue = queue.then(apply).catch((error: unknown) => console.error("Lurk: apply failed", error));
+// Every read-then-write of pauseUntil and stats runs on this queue (the popup asks for its writes
+// with a PopupMessage), so no write lands between another run's read and its write.
+function enqueue(task: () => Promise<void>, what: string) {
+  queue = queue.then(task).catch((error: unknown) => console.error(`Lurk: ${what} failed`, error));
   return queue;
 }
+const sync = () => enqueue(apply, "apply");
 
 // ---- Stats: local.stats = { since, sites: { <site id>: { seen, stories, typing } } } -------------
 // Content scripts report each blocked signal (already de-duplicated, see content/bridge.ts). Counts
@@ -96,6 +108,24 @@ async function addCount(siteId: string, kind: Kind) {
   await chrome.storage.local.set({ stats: next });
 }
 
+// "Let receipts through": only while blocking is switched on (the popup's button says the same).
+async function startPause() {
+  const { enabled = true } = await readLocal(["enabled"]);
+  if (enabled) await chrome.storage.local.set({ pauseUntil: Date.now() + PAUSE_MS });
+}
+
+async function resetStats() {
+  const stats: Stats = { since: Date.now(), sites: {} };
+  await chrome.storage.local.set({ stats });
+}
+
+chrome.runtime.onMessage.addListener((message: Partial<PopupMessage> | null, sender) => {
+  // Only the extension's own pages; a content script's sender.url is the web page.
+  if (!sender.url?.startsWith(chrome.runtime.getURL(""))) return;
+  if (message?.type === "lurk:pause") void enqueue(startPause, "pause");
+  else if (message?.type === "lurk:reset-stats") void enqueue(resetStats, "reset");
+});
+
 chrome.runtime.onMessage.addListener((message: Partial<CountMessage> | null, sender) => {
   const kind = message?.kind;
   if (message?.type !== "lurk:count" || !isKind(kind)) return;
@@ -107,9 +137,7 @@ chrome.runtime.onMessage.addListener((message: Partial<CountMessage> | null, sen
   }
   const site = siteFor(host);
   if (!site?.covers[kind]) return;
-  queue = queue
-    .then(() => addCount(site.id, kind))
-    .catch((error: unknown) => console.error("Lurk: count failed", error));
+  void enqueue(() => addCount(site.id, kind), "count");
 });
 
 chrome.runtime.onInstalled.addListener(sync);
@@ -121,10 +149,12 @@ chrome.storage.onChanged.addListener((changes) => {
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === ALARM) void sync();
 });
-chrome.commands.onCommand.addListener(async (command) => {
+chrome.commands.onCommand.addListener((command) => {
   if (command !== "toggle-blocking") return;
-  const { enabled = true } = await readLocal(["enabled"]);
-  await chrome.storage.local.set({ enabled: !enabled });
+  void enqueue(async () => {
+    const { enabled = true } = await readLocal(["enabled"]);
+    await chrome.storage.local.set({ enabled: !enabled });
+  }, "toggle");
 });
 
 void sync();

@@ -1,13 +1,33 @@
 // The toolbar popup: main switch, per-signal switches for the open site, pass-through, Stats.
-import { KINDS, readLocal, type Kind, type Signals, type Stats, type Stored } from "../shared";
+import {
+  KINDS,
+  readLocal,
+  type Kind,
+  type PopupMessage,
+  type Signals,
+  type Stats,
+  type Stored,
+} from "../shared";
 import { SITES, siteFor, type Site } from "../sites";
 
-const PAUSE_MS = 10_000;
+// Pauses and resets are written by the background worker, on its queue (see PopupMessage).
+const ask = (message: PopupMessage) =>
+  chrome.runtime.sendMessage(message).catch((error: unknown) => {
+    console.error("Lurk: the background worker did not answer", error);
+  });
 
 const byId = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const enabledEl = byId<HTMLInputElement>("enabled");
 const heroEl = byId("hero");
 const statusEl = byId("status");
+// The status pill is a live region: its words, plus a countdown kept aria-hidden so a pause is
+// announced once, not every second. One wrapper span, so the pill's flex gap stays outside the text.
+const statusTextEl = document.createElement("span");
+const statusCountEl = document.createElement("span");
+statusCountEl.setAttribute("aria-hidden", "true");
+const statusWrapEl = document.createElement("span");
+statusWrapEl.append(statusTextEl, statusCountEl);
+statusEl.append(statusWrapEl);
 const passEl = byId<HTMLButtonElement>("pass");
 const headingEl = byId("site-heading");
 const tipEl = byId("tip");
@@ -84,14 +104,13 @@ const STATUS_WORDS: Record<Kind, string> = {
 interface Status {
   enabled: boolean;
   paused: boolean;
-  secondsLeft: number;
   signals: Partial<Signals>;
 }
 
 // The status pill: what is happening here and now. Returns [text, tone].
-function statusFor({ enabled, paused, secondsLeft, signals }: Status): [string, string] {
+function statusFor({ enabled, paused, signals }: Status): [string, string] {
   if (!enabled) return ["Off: people see when you read", "warn"];
-  if (paused) return [`Letting receipts through: ${secondsLeft} s`, "warn"];
+  if (paused) return ["Letting receipts through", "warn"];
   const covers = coversHere();
   // No website (new tab, chrome:// pages): nothing to hide here, but every switch stays usable.
   if (page.kind === "none") return ["Lurk does nothing on this page", "idle"];
@@ -122,8 +141,11 @@ async function render() {
   // aria-disabled, not disabled: a disabled button drops keyboard focus right after it is clicked.
   passEl.setAttribute("aria-disabled", String(!enabled || paused));
 
-  const [text, tone] = statusFor({ enabled, paused, secondsLeft, signals });
-  statusEl.textContent = text;
+  const [text, tone] = statusFor({ enabled, paused, signals });
+  // Written only when it changes: rewriting the same words would have the live region repeat them
+  // on every stats update and every countdown tick.
+  if (statusTextEl.textContent !== text) statusTextEl.textContent = text;
+  statusCountEl.textContent = paused ? `: ${secondsLeft} s` : "";
   statusEl.dataset.tone = tone;
   heroEl.dataset.state = tone === "warn" ? "off" : "on";
   return paused ? pauseUntil : 0;
@@ -151,9 +173,9 @@ systemDark.addEventListener("change", () => applyTheme(themeChoice));
 // ---- Stats (local.stats = { since, sites: { <site id>: { seen, stories, typing } } }) ------------
 type Counts = Partial<Record<Kind, number>>;
 const STAT_WORDS: Record<Kind, (n: number) => string> = {
-  seen: (n) => `${n} Seen`,
-  stories: (n) => `${n} ${n === 1 ? "story view" : "story views"}`,
-  typing: (n) => `${n} typing`,
+  seen: (n) => `${n.toLocaleString()} Seen`,
+  stories: (n) => `${n.toLocaleString()} ${n === 1 ? "story view" : "story views"}`,
+  typing: (n) => `${n.toLocaleString()} typing`,
 };
 const sumOf = (counts: Counts | undefined) =>
   KINDS.reduce((sum, key) => sum + (counts?.[key] || 0), 0);
@@ -197,6 +219,7 @@ function renderStats(stats: Stats | undefined) {
 
 // Two steps, so one stray click cannot wipe the counts.
 const resetEl = byId<HTMLButtonElement>("reset-stats");
+const statsSummaryEl = document.querySelector<HTMLElement>(".stats summary");
 let resetArmed = 0;
 resetEl.addEventListener("click", async () => {
   if (!resetArmed) {
@@ -210,8 +233,9 @@ resetEl.addEventListener("click", async () => {
   clearTimeout(resetArmed);
   resetArmed = 0;
   resetEl.textContent = "Reset stats";
-  const stats: Stats = { since: Date.now(), sites: {} };
-  await chrome.storage.local.set({ stats });
+  // The button hides once there is nothing to reset: keep keyboard focus in the Stats section.
+  statsSummaryEl?.focus();
+  await ask({ type: "lurk:reset-stats" });
 });
 
 // ---- Main switch and pass-through -------------------------------------------------------------
@@ -222,7 +246,7 @@ enabledEl.addEventListener("change", () => {
 
 passEl.addEventListener("click", () => {
   if (passEl.getAttribute("aria-disabled") === "true") return;
-  void chrome.storage.local.set({ pauseUntil: Date.now() + PAUSE_MS });
+  void ask({ type: "lurk:pause" });
 });
 
 // Re-render only when stored state changes, plus once a second while a pause counts down.

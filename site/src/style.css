@@ -306,7 +306,7 @@ a:hover {
   width: 40px;
   height: 40px;
   border-radius: 999px;
-  background: #8e6bff;
+  background: #7650e8; /* white text at 5.1:1 */
   color: #fff;
   font-weight: 800;
 }
@@ -322,7 +322,7 @@ a:hover {
   max-width: 80%;
   padding: 10px 14px;
   border-radius: 20px 20px 6px 20px;
-  background: #2f6bff;
+  background: #2b65f0; /* white text at 4.9:1 */
   color: #fff;
   font-size: 16px;
 }

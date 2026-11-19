@@ -73,7 +73,7 @@ Firefox suite (Nightly) on every push and pull request; `.github/workflows/pages
 | `eslint.config.js` | ESLint flat config (with typescript-eslint): type-aware rules for all TypeScript, browser/webextension globals for `src/`, no `import()` there, Node for scripts and tests. |
 | `.prettierrc.json`, `.prettierignore` | Prettier, width 100. Markdown is hand-wrapped and not formatted. |
 | `.githooks/pre-commit`, `.github/workflows/` | Pre-commit gate; CI (`ci.yml`) and website deploy (`pages.yml`). |
-| `docs/workstreams/` | Audit tracker (`AUD-NNN` items) for open live-verification work. |
+| `docs/workstreams/` | Audit trackers (`AUD-NNN` items) for open work, and `project-defect-classes.md`: each defect class found, its rule and its guard in `tests/classes.test.ts`. |
 
 ## How the pieces talk
 
@@ -82,11 +82,18 @@ Firefox suite (Nightly) on every push and pull request; `.github/workflows/pages
   `detail` = JSON string `{kind, key}`. Always pass strings across the boundary: Firefox's Xray wrappers block
   page access to object details sent from a content script.
 - Until the first `lurk:state` arrives, page scripts block everything.
+- An extension update or reload leaves `bridge.ts` in open tabs cut off from the extension (every `chrome.*`
+  call throws). It then keeps the last settings, still ends a running pause on time, and ignores the page
+  scripts' events (`alive()`, `onPageEvent`). `restart.e2e.mjs` covers it.
 - `bridge.ts` collapses repeats (`WINDOW_MS`: seen 60 s per key, stories 30 s per key, typing 10 s per tab)
   and sends `{type: "lurk:count", kind}` to the worker, which counts it only if `sites.ts` says that app
   covers that kind (`sender.url` decides the app, never the message).
 - The worker runs `apply()` through one promise queue (`sync()`), so a slow run never overwrites a newer
   state. Stats-only storage changes do not re-apply.
+- Every read-then-write of storage (counts, a new pause, the stats reset, the shortcut's toggle) runs on that
+  queue. The popup asks for a pause or a reset with a `PopupMessage` (`lurk:pause`, `lurk:reset-stats`),
+  accepted only from the extension's own pages; it writes `enabled`, `signals` and `theme` directly.
+  `tests/classes.test.ts` fails on a new write outside these rules.
 
 ## Storage
 

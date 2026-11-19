@@ -12,7 +12,7 @@
   --hero: #1fd566;
   --hero-ink: #06210f;
   --pill: rgba(6, 33, 15, 0.12);
-  --track-off: #b9c1ba;
+  --track-off: #7c847e; /* 3:1 against --card, so an off switch still reads */
   --warn: #b3261e;
   --glow: 0 10px 24px rgba(14, 122, 60, 0.18);
 }
@@ -26,7 +26,7 @@
     --muted: #9ba49e;
     --line: #2f3530;
     --accent: #1fd566;
-    --track-off: #3a403b;
+    --track-off: #6b736d;
     --warn: #f2b8b5;
     --glow: 0 10px 32px rgba(31, 213, 102, 0.22);
   }
@@ -40,7 +40,7 @@
   --muted: #9ba49e;
   --line: #2f3530;
   --accent: #1fd566;
-  --track-off: #3a403b;
+  --track-off: #6b736d;
   --warn: #f2b8b5;
   --glow: 0 10px 32px rgba(31, 213, 102, 0.22);
 }
@@ -52,7 +52,6 @@
 body {
   margin: 0;
   width: 380px;
-  min-width: 320px;
   background: var(--bg);
   color: var(--ink);
   font:
@@ -263,6 +262,11 @@ main {
 
 .switch-hero:checked {
   background: #0b0c0b;
+}
+
+/* Off or paused, the card is --card: the near-black track would vanish on the dark one. */
+.hero[data-state="off"] .switch-hero:checked {
+  background: var(--accent);
 }
 
 .switch-hero:checked::after {

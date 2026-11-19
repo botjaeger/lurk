@@ -1,4 +1,5 @@
-// Browser restarts keep the user's choice, and a pause never survives one: pnpm e2e
+// Browser restarts keep the user's choice, and a pause never survives one, nor an extension update
+// under an open tab: pnpm e2e
 // Same env as extension.e2e.mjs (PLAYWRIGHT, CHROME_BIN).
 import { createRequire } from "node:module";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -58,6 +59,45 @@ ctx = await launch();
 sw = await worker(ctx);
 await wait(1000);
 check("off stays off after restart", await state(sw), { blocking: false, badge: "OFF" });
+await sw.evaluate(() => chrome.storage.local.set({ enabled: true }));
+await wait(300);
+
+// An update (here: a reload) cuts the open tab's bridge off from the extension. A pause running at
+// that moment must still end in that tab, and the cut-off bridge must not throw into the page.
+const reached = [];
+await ctx.route(/^https:\/\/www\.facebook\.com\//, (route) => {
+  if (route.request().resourceType() === "document")
+    return route.fulfill({ contentType: "text/html", body: "<!doctype html><p>fake" });
+  reached.push(route.request().url());
+  return route.fulfill({ contentType: "application/json", body: "{}" });
+});
+const tab = await ctx.newPage();
+const pageErrors = [];
+tab.on("pageerror", (e) => pageErrors.push(String(e)));
+await tab.goto("https://www.facebook.com/");
+await wait(300);
+const storySent = async () => {
+  const before = reached.length;
+  await tab.evaluate(() => {
+    const body = new FormData();
+    body.append("fb_api_req_friendly_name", "storiesUpdateSeenStateMutation");
+    return fetch("/api/graphql/", { method: "POST", body }).then((r) => r.text());
+  });
+  await wait(150);
+  return reached.length > before;
+};
+await sw.evaluate(() => chrome.storage.local.set({ pauseUntil: Date.now() + 1500 }));
+await wait(300);
+check("update mid-pause: story view let through during the pause", await storySent(), true);
+await sw.evaluate(() => chrome.runtime.reload()).catch(() => {});
+await wait(2500);
+check("update mid-pause: the open tab blocks again when the pause ends", await storySent(), false);
+await tab.evaluate(() => {
+  document.dispatchEvent(new CustomEvent("lurk:count", { detail: '{"kind":"stories","key":"x"}' }));
+  document.dispatchEvent(new CustomEvent("lurk:ready"));
+});
+await wait(300);
+check("update: the cut-off bridge throws nothing into the page", pageErrors, []);
 await ctx.close();
 
 console.log(

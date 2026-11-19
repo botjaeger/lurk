@@ -150,7 +150,17 @@ try {
   await wait(400);
   check("Story views back on: blocked again", !(await post(`${FB}/api/graphql/`, STORY)).reached);
 
-  // Pass-through: page scripts and network rules both let receipts out, then block again.
+  // Pass-through: the popup's button asks the background script, which starts a 10 s pause.
+  // Firefox refuses input actions on the privileged popup page; Chromium suites click for real.
+  await ext.evaluate(() => document.getElementById("pass").click());
+  await wait(600);
+  s = await bg();
+  check(
+    "popup button: background starts a 10 s pause",
+    s.local.pauseUntil - Date.now() > 8000 && s.local.pauseUntil - Date.now() <= 10_000,
+    s.local.pauseUntil - Date.now(),
+  );
+  // Page scripts and network rules both let receipts out, then block again (shortened to 3 s).
   await setLocal({ pauseUntil: Date.now() + 3000 });
   await wait(600);
   s = await bg();
@@ -218,6 +228,19 @@ try {
   r = await post(RECEIPT, { a: "1" });
   check("Seen switched off: Google Chat receipt goes through", r.status === 200, r);
   await setLocal({ signals: { seen: true, stories: true, typing: true } });
+
+  // Reset stats: two clicks in the popup; the background script clears the counts.
+  await ext.evaluate(() => (document.querySelector("details.stats").open = true));
+  await wait(200);
+  await ext.evaluate(() => document.getElementById("reset-stats").click());
+  await ext.evaluate(() => document.getElementById("reset-stats").click());
+  await wait(600);
+  s = await bg();
+  check(
+    "popup Reset stats: background clears the counts",
+    Object.keys(s.local.stats?.sites ?? { x: 1 }).length === 0,
+    s.local.stats,
+  );
 
   check("no page errors", pageErrors.length === 0 && extErrors.length === 0, [
     ...pageErrors,

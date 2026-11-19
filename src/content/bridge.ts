@@ -2,10 +2,37 @@
 // content/page.ts, whatsapp.ts and gchat.ts (MAIN world), which cannot use chrome.* APIs.
 // Blocking is active when local.enabled is on and no local.pauseUntil pass-through is running;
 // local.signals switches each signal (seen, stories, typing) on its own.
-import { isKind, readLocal, type CountMessage, type Kind, type Signals } from "../shared";
+//
+// When the extension is updated or reloaded, this script stays in open tabs but is cut off from the
+// extension: every chrome.* call throws. The page scripts keep blocking with the last settings, and
+// a pause that was running still ends on time (see push).
+import {
+  isKind,
+  readLocal,
+  type CountMessage,
+  type Kind,
+  type Signals,
+  type Stored,
+} from "../shared";
 
 let timer = 0;
 let state: Signals = { seen: true, stories: true, typing: true };
+let stored: Pick<Stored, "enabled" | "signals" | "pauseUntil"> = {};
+
+/** False once the extension was updated or reloaded under this tab. */
+const alive = () => {
+  try {
+    return Boolean(chrome.runtime?.id);
+  } catch {
+    return false;
+  }
+};
+
+/** The page scripts' DOM events, ignored once this script is cut off from the extension. */
+const onPageEvent = (type: string, handler: (event: Event) => void) =>
+  document.addEventListener(type, (event) => {
+    if (alive()) handler(event);
+  });
 
 // ---- Stats ---------------------------------------------------------------------------------------
 // Page scripts fire "lurk:count" with { kind, key } for each signal they block. Repeats collapse:
@@ -13,7 +40,7 @@ let state: Signals = { seen: true, stories: true, typing: true };
 // about 18 times, so one burst of typing, one read of a chat or one story view counts once.
 const WINDOW_MS: Record<Kind, number> = { seen: 60_000, stories: 30_000, typing: 10_000 };
 const lastSeen = new Map<string, number>();
-document.addEventListener("lurk:count", (event) => {
+onPageEvent("lurk:count", (event) => {
   let kind: unknown;
   let key: unknown;
   try {
@@ -35,16 +62,20 @@ document.addEventListener("lurk:count", (event) => {
   if (lastSeen.size > 500) lastSeen.clear();
   const message: CountMessage = { type: "lurk:count", kind };
   chrome.runtime.sendMessage(message).catch(() => {
-    // Worker restarting or extension reloaded: one count lost, never the page.
+    // Worker restarting: one count lost, never the page.
   });
 });
 
 async function push() {
-  const {
-    enabled = true,
-    signals = {},
-    pauseUntil = 0,
-  } = await readLocal(["enabled", "signals", "pauseUntil"]);
+  // Cut off from the extension: keep the last settings; a pause in them has ended by now.
+  if (alive()) {
+    try {
+      stored = await readLocal(["enabled", "signals", "pauseUntil"]);
+    } catch {
+      // Cut off while reading.
+    }
+  }
+  const { enabled = true, signals = {}, pauseUntil = 0 } = stored;
   const now = Date.now();
   const active = enabled && !(pauseUntil > now);
   state = {
@@ -67,5 +98,6 @@ chrome.storage.onChanged.addListener((changes) => {
   if (Object.keys(changes).some((key) => key !== "stats")) void push();
 });
 // The page scripts announce themselves; whichever script runs first, the state still gets across.
-document.addEventListener("lurk:ready", push);
+// (Not onPageEvent: a page script injected after the cut-off still needs the last settings.)
+document.addEventListener("lurk:ready", () => void push());
 void push();

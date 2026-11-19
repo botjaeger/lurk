@@ -86,9 +86,38 @@ const desc = await page
   .evaluate((el) => el.ariaDescribedByElements?.[0]?.id ?? el.getAttribute("aria-describedby"));
 check("switch described by status", desc === "status", desc);
 
+// The status pill is a live region: record each change a screen reader would speak (text outside
+// aria-hidden), to check it speaks once per change of state, not on every tick or stats update.
+await page.evaluate(() => {
+  window.__spoken = 0;
+  new MutationObserver((records) => {
+    for (const r of records) {
+      const node = r.target.nodeType === 3 ? r.target.parentElement : r.target;
+      if (!node.closest("[aria-hidden=true]")) window.__spoken++;
+    }
+  }).observe(document.getElementById("status"), {
+    childList: true,
+    subtree: true,
+    characterData: true,
+  });
+});
+await sw.evaluate(() =>
+  chrome.storage.local.set({ stats: { since: 1, sites: { meta: { seen: 3 } } } }),
+);
+await page.waitForTimeout(300);
+check(
+  "status pill: a stats update does not repeat it",
+  (await page.evaluate(() => window.__spoken)) === 0,
+);
+
 // Pause: real click, then the receipt must reach the network, then be blocked again after 10 s.
 await page.locator("#pass").click();
-await page.waitForTimeout(700);
+await page.waitForTimeout(2700);
+check(
+  "status pill: the pause is announced once, the countdown is not",
+  (await page.evaluate(() => window.__spoken)) === 1,
+  await page.evaluate(() => window.__spoken),
+);
 check("pause: receipt goes out", await fires(RECEIPT));
 const p = await swState();
 check("pause: badge counts down", /^\d+s$/.test(p.badge), p.badge);

@@ -35,3 +35,12 @@ export interface CountMessage {
   type: "lurk:count";
   kind: Kind;
 }
+
+/** How long "Let receipts through" lets them through. */
+export const PAUSE_MS = 10_000;
+
+/**
+ * popup -> background.ts. Writes that read before they write (a new pause, a stats reset) run on
+ * the worker's queue, so they never interleave with the worker's own writes to the same key.
+ */
+export type PopupMessage = { type: "lurk:pause" } | { type: "lurk:reset-stats" };
